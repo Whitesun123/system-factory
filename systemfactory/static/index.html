@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System Factory</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1b1f24; --muted: #5f6b7a; --line: #e2e6eb;
+  --accent: #2f5bd3; --accent-ink: #ffffff; --code: #f1f3f6;
+  --ok: #1f7a4d; --ok-bg: #e3f4ea; --warn: #8a5a00; --warn-bg: #fdf1d8;
+  --bad: #b42318; --bad-bg: #fde8e6; --info: #2f5bd3; --info-bg: #e6edfc; --idle: #6b7280; --idle-bg: #eef0f3;
+  --add: #e6f6ec; --del: #fdecea;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1216; --panel: #171b21; --ink: #e6e9ee; --muted: #9aa5b4; --line: #2a3039;
+    --accent: #6d8ff0; --accent-ink: #0f1216; --code: #1e232b;
+    --ok: #5fd39a; --ok-bg: #133325; --warn: #f0c060; --warn-bg: #3a2d10; --bad: #ff8a80; --bad-bg: #3d1714;
+    --info: #8eaaf7; --info-bg: #1a2546; --idle: #9aa5b4; --idle-bg: #232932; --add: #12301f; --del: #3a1714;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 14px 20px;
+  background: var(--panel); border-bottom: 1px solid var(--line); }
+header h1 { font-size: 17px; margin: 0; letter-spacing: .2px; }
+header .sub { color: var(--muted); font-size: 12px; }
+.badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; background: var(--idle-bg); color: var(--idle); white-space: nowrap; }
+.badge.sim { background: var(--warn-bg); color: var(--warn); }
+.counts { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+main { display: grid; grid-template-columns: minmax(300px, 400px) 1fr; gap: 16px; padding: 16px 20px; }
+@media (max-width: 900px) { main { grid-template-columns: 1fr; padding: 12px 16px; } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 16px; min-width: 0; }
+.card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 0 0 10px; }
+label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
+select, input, textarea { width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--bg); color: var(--ink); font: inherit; }
+textarea { min-height: 90px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+button { padding: 7px 13px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel);
+  color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button.danger { color: var(--bad); }
+button:disabled { opacity: .5; cursor: default; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.row > * { flex: 0 0 auto; }
+table { width: 100%; border-collapse: collapse; }
+td, th { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+tr.wf { cursor: pointer; }
+tr.wf:hover, tr.wf.sel { background: var(--bg); }
+.st { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.s-queued, .s-pending { background: var(--idle-bg); color: var(--idle); }
+.s-running { background: var(--info-bg); color: var(--info); }
+.s-awaiting_approval, .s-waiting { background: var(--warn-bg); color: var(--warn); }
+.s-approved, .s-succeeded { background: var(--ok-bg); color: var(--ok); }
+.s-failed, .s-rejected { background: var(--bad-bg); color: var(--bad); }
+.s-blocked { background: var(--warn-bg); color: var(--warn); }
+.s-cancelled { background: var(--idle-bg); color: var(--idle); text-decoration: line-through; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.pipeline { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
+.stepchip { border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; min-width: 92px; }
+.stepchip .n { font-weight: 600; font-size: 12px; }
+.stepchip .r { font-size: 11px; color: var(--muted); }
+.stepchip.running { border-color: var(--info); box-shadow: 0 0 0 2px var(--info-bg); }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; font-size: 12px; }
+.kv div:nth-child(odd) { color: var(--muted); }
+.kv div { overflow-wrap: anywhere; }
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-top: 12px; overflow-x: auto; }
+.tabs button { border: none; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--muted); }
+.tabs button.on { color: var(--ink); border-bottom-color: var(--accent); }
+pre { background: var(--code); padding: 10px; border-radius: 7px; overflow: auto; max-height: 420px;
+  font: 12px/1.45 ui-monospace, Consolas, monospace; margin: 6px 0; white-space: pre; }
+details { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; margin: 6px 0; }
+summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+.diff span { display: block; }
+.diff .a { background: var(--add); }
+.diff .d { background: var(--del); }
+.diff .h { color: var(--info); }
+.log td { font-size: 12px; padding: 4px 6px; }
+.lvl-warning { color: var(--warn); } .lvl-error { color: var(--bad); }
+.banner { padding: 10px 12px; border-radius: 8px; margin: 10px 0; font-size: 13px; }
+.banner.bad { background: var(--bad-bg); color: var(--bad); }
+.banner.warn { background: var(--warn-bg); color: var(--warn); }
+.banner.ok { background: var(--ok-bg); color: var(--ok); }
+.empty { color: var(--muted); padding: 30px 0; text-align: center; }
+.check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink); margin: 8px 0 0; }
+.check input { width: auto; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>System Factory</h1>
+    <div class="sub">Intake → Triage → PRD → Plan → Coding → Testing → Review → Human approval</div>
+  </div>
+  <span id="runtime" class="badge sim" title="">runtime: …</span>
+  <span id="worker" class="badge">worker: …</span>
+  <div class="counts" id="counts"></div>
+</header>
+<main>
+  <section>
+    <div class="card">
+      <h2>Submit a sample issue</h2>
+      <select id="sample"></select>
+      <label class="check"><input type="checkbox" id="fault"> Inject a transient fault in step
+        <select id="faultStep" style="width:auto"><option>reproduce</option><option>coding</option><option>triage</option><option>testing</option></select></label>
+      <label class="check"><input type="checkbox" id="throttle"> Slow down repair (200 ms/candidate) to demo cancellation</label>
+      <div class="row"><button class="primary" id="submitSample">Submit</button></div>
+    </div>
+    <details class="card" style="padding:14px">
+      <summary>Submit a custom issue</summary>
+      <label>Title</label><input id="ctitle" maxlength="200">
+      <label>Body (bugs: include a ```python block with &gt;&gt;&gt; examples and expected output)</label>
+      <textarea id="cbody"></textarea>
+      <div class="row"><button class="primary" id="submitCustom">Submit</button></div>
+    </details>
+    <div class="card">
+      <h2>Workflows</h2>
+      <table><thead><tr><th>#</th><th>Issue</th><th>State</th><th>Step</th></tr></thead>
+        <tbody id="wfrows"></tbody></table>
+      <div id="noWf" class="empty">No workflows yet. Submit an issue above.</div>
+    </div>
+  </section>
+  <section>
+    <div class="card" id="detail"><div class="empty">Select a workflow to see its steps, evidence, diff and log.</div></div>
+  </section>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmtT = (ts) => ts ? new Date(ts * 1000).toLocaleTimeString() : "–";
+const dur = (a, b) => a ? (((b || Date.now() / 1000) - a)).toFixed(1) + "s" : "–";
+let selected = null, tab = "evidence", lastDetail = "", lastList = "", openDetails = new Set();
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { headers: { "Content-Type": "application/json" }, ...opts });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail ? JSON.stringify(body.detail) : r.statusText);
+  return body;
+}
+const chip = (s) => `<span class="st s-${esc(s)}">${esc(String(s).replace("_", " "))}</span>`;
+
+async function loadSamples() {
+  const samples = await api("/api/samples");
+  $("#sample").innerHTML = samples.map(s => `<option value="${esc(s.key)}">${esc(s.label)}</option>`).join("");
+}
+
+async function refreshHeader() {
+  const h = await api("/api/health");
+  const rt = h.runtime;
+  $("#runtime").textContent = rt.mode === "simulated" ? "runtime: SIMULATED (no LLM)" : "runtime: " + rt.mode;
+  $("#runtime").title = rt.description + " " + rt.note;
+  $("#worker").textContent = h.worker.running
+    ? `worker: ${h.worker.active_workflows.length}/${h.worker.concurrency} busy` : "worker: off";
+  const order = ["queued","running","awaiting_approval","blocked","failed","approved","rejected","cancelled"];
+  $("#counts").innerHTML = order.filter(s => h.counts[s]).map(s => `${chip(s)}<span class="small">${h.counts[s]}</span>`).join(" ");
+}
+
+async function refreshList() {
+  const rows = await api("/api/workflows");
+  const sig = JSON.stringify([selected, rows.map(w => [w.id, w.state, w.current_step, w.total_attempts, w.kind])]);
+  if (sig === lastList) return;
+  lastList = sig;
+  $("#noWf").style.display = rows.length ? "none" : "block";
+  $("#wfrows").innerHTML = rows.map(w => `
+    <tr class="wf ${w.id === selected ? "sel" : ""}" data-id="${w.id}">
+      <td>${w.id}</td>
+      <td><div>${esc(w.issue_title)}</div><div class="small muted">${esc(w.kind || "untriaged")} · ${esc(w.issue_source)} · ${w.total_attempts} attempts</div></td>
+      <td>${chip(w.state)}</td><td class="small">${esc(w.current_step || "–")}</td>
+    </tr>`).join("");
+  document.querySelectorAll("tr.wf").forEach(tr => tr.onclick = () => { selected = +tr.dataset.id; lastDetail = ""; refreshList(); refreshDetail(); });
+}
+
+function renderDiff(text) {
+  return `<pre class="diff">${text.split("\n").map(l => {
+    const cls = l.startsWith("+") && !l.startsWith("+++") ? "a" : l.startsWith("-") && !l.startsWith("---") ? "d" : l.startsWith("@@") ? "h" : "";
+    return `<span class="${cls}">${esc(l) || " "}</span>`;
+  }).join("")}</pre>`;
+}
+
+function evidenceBody(e) {
+  if (e.kind === "patch" || e.kind === "diff") return renderDiff(e.content);
+  const meta = Object.entries(e.data || {}).filter(([k, v]) => typeof v !== "object").map(([k, v]) => `${esc(k)}=${esc(v)}`).join(" · ");
+  return (meta ? `<div class="small muted">${meta}</div>` : "") + `<pre>${esc(e.content)}</pre>`;
+}
+
+function renderDetail(d) {
+  const w = d.workflow;
+  const actions = [];
+  if (w.state === "awaiting_approval") actions.push(`
+    <div class="banner warn">Waiting for a human decision. Approving records the decision only; System Factory never merges, pushes or deploys.</div>
+    <div class="row"><input id="actor" placeholder="Your name (required)" style="width:200px">
+      <input id="comment" placeholder="Comment (optional)" style="width:260px">
+      <button class="primary" id="approve">Approve</button><button class="danger" id="reject">Reject</button></div>`);
+  const btns = [];
+  if (["queued","running","awaiting_approval","blocked","failed"].includes(w.state)) btns.push(`<button class="danger" id="cancel">${w.cancel_requested && w.state === "running" ? "Cancelling…" : "Cancel"}</button>`);
+  if (["failed","blocked"].includes(w.state)) btns.push(`<button id="retry">Retry from failed step</button>`);
+
+  const banner = w.error ? `<div class="banner ${w.state === "blocked" ? "warn" : "bad"}"><b>${w.state === "blocked" ? "Blocked" : "Failed"}:</b> ${esc(w.error)}</div>`
+    : w.state === "approved" ? `<div class="banner ok">Approved by ${esc(d.approvals.at(-1)?.actor)}. Branch <code>${esc(w.branch)}</code> is ready for a human to merge.</div>` : "";
+
+  const steps = d.steps.map(s => {
+    const pol = d.policies[s.role] || {};
+    return `<div class="stepchip ${s.status}" title="writes: ${esc((pol.writes||[]).join(", ") || "none")}\ncommands: ${esc((pol.commands||[]).join(", ") || "none")}">
+      <div class="n">${esc(s.name)}</div><div class="r">${esc(s.role)}</div>
+      <div style="margin-top:4px">${chip(s.status)} ${s.attempts > 1 ? `<span class="small">×${s.attempts}</span>` : ""}</div></div>`;
+  }).join("");
+
+  const u = w.usage || {};
+  const kv = [["Kind", w.kind || "–"], ["Branch", w.branch || "–"], ["Worktree", w.worktree || "–"],
+    ["Base commit", (w.base_commit || "–").slice(0, 12)], ["Started", fmtT(w.started_at)], ["Automation time", dur(w.started_at, w.finished_at)],
+    ...(d.approvals.length ? [["Decision", `${d.approvals.at(-1).decision} by ${d.approvals.at(-1).actor} at ${fmtT(d.approvals.at(-1).ts)}`]] : []),
+    ["Usage", `${u.test_runs || 0} test runs · ${u.candidate_evals || 0} repair candidates · ${u.llm_tokens || 0} LLM tokens · $${(u.cost_usd || 0).toFixed(2)}`],
+    ["Options", JSON.stringify(w.options)]].map(([k, v]) => `<div>${k}</div><div>${esc(v)}</div>`).join("");
+
+  let body = "";
+  if (tab === "evidence") {
+    body = d.evidence.length ? d.evidence.map(e => `<details data-ev="${e.id}" ${openDetails.has(String(e.id)) ? "open" : ""}>
+      <summary>${esc(e.title)} <span class="small muted">· ${esc(e.step)} · ${esc(e.kind)} · ${fmtT(e.created_at)}</span></summary>${evidenceBody(e)}</details>`).join("")
+      : `<div class="empty">No evidence yet.</div>`;
+  } else if (tab === "diff") {
+    const diff = [...d.evidence].reverse().find(e => e.kind === "diff") || [...d.evidence].reverse().find(e => e.kind === "patch");
+    body = diff ? `<div class="small muted">${esc(diff.title)}</div>${renderDiff(diff.content)}` : `<div class="empty">No diff for this workflow.</div>`;
+  } else if (tab === "log") {
+    body = `<table class="log">${d.events.map(e => `<tr><td class="muted">${fmtT(e.ts)}</td><td class="lvl-${esc(e.level)}">${esc(e.level)}</td>
+      <td class="muted">${esc(e.actor)}</td><td>${esc(e.message)}</td></tr>`).join("")}</table>`;
+  } else if (tab === "attempts") {
+    body = `<table><thead><tr><th>Step</th><th>#</th><th>Status</th><th>Duration</th><th>Error</th></tr></thead>${d.attempts.map(a => `<tr>
+      <td>${esc(a.step)}</td><td>${a.n}</td><td>${chip(a.status === "running" ? "running" : a.status)}</td>
+      <td>${dur(a.started_at, a.finished_at)}</td><td class="small">${esc(a.error || "")}</td></tr>`).join("")}</table>`;
+  } else if (tab === "data") {
+    body = `<pre>${esc(JSON.stringify(w.data, null, 2))}</pre>`;
+  }
+
+  $("#detail").innerHTML = `
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><h2 style="margin:0;text-transform:none;letter-spacing:0;font-size:16px;color:var(--ink)">#${w.id} ${esc(w.issue_title)}</h2>${chip(w.state)}</div>
+    ${banner}${actions.join("")}
+    <div class="pipeline">${steps}</div>
+    <div class="kv">${kv}</div>
+    <div class="row">${btns.join("")}</div>
+    <details style="margin-top:10px"><summary>Original issue</summary><pre style="white-space:pre-wrap">${esc(w.issue_body)}</pre></details>
+    <div class="tabs">${["evidence","diff","log","attempts","data"].map(t => `<button data-tab="${t}" class="${t === tab ? "on" : ""}">${t}</button>`).join("")}</div>
+    <div style="margin-top:10px">${body}</div>`;
+
+  document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { tab = b.dataset.tab; lastDetail = ""; refreshDetail(); });
+  document.querySelectorAll("details[data-ev]").forEach(el => el.ontoggle = () => { el.open ? openDetails.add(el.dataset.ev) : openDetails.delete(el.dataset.ev); });
+  const act = (name, payload) => async () => {
+    try { await api(`/api/workflows/${w.id}/${name}`, { method: "POST", body: payload ? JSON.stringify(payload) : undefined }); }
+    catch (e) { alert(e.message); }
+    lastDetail = ""; refresh();
+  };
+  if ($("#approve")) {
+    $("#approve").onclick = () => { const actor = $("#actor").value.trim(); if (!actor) return alert("Enter your name to approve."); act("approve", { actor, comment: $("#comment").value })(); };
+    $("#reject").onclick = () => { const actor = $("#actor").value.trim(); if (!actor) return alert("Enter your name to reject."); act("reject", { actor, comment: $("#comment").value })(); };
+  }
+  if ($("#cancel")) $("#cancel").onclick = act("cancel");
+  if ($("#retry")) $("#retry").onclick = act("retry");
+}
+
+async function refreshDetail() {
+  if (selected == null) return;
+  const d = await api(`/api/workflows/${selected}`);
+  const sig = JSON.stringify([d.workflow.state, d.workflow.updated_at, d.events.length, d.evidence.length, d.attempts.map(a => a.status), tab]);
+  if (sig === lastDetail) return;
+  const typing = document.activeElement && ["actor","comment"].includes(document.activeElement.id);
+  if (typing) return;  // do not wipe the approval form while someone is typing
+  lastDetail = sig;
+  renderDetail(d);
+}
+
+async function refresh() {
+  try { await Promise.all([refreshHeader(), refreshList(), refreshDetail()]); }
+  catch (e) { console.error(e); }
+}
+
+async function submit(path, payload) {
+  try {
+    const r = await api(path, { method: "POST", body: JSON.stringify(payload) });
+    selected = r.workflow_id; lastDetail = ""; tab = "log"; refresh();
+  } catch (e) { alert(e.message); }
+}
+$("#submitSample").onclick = () => submit(`/api/samples/${$("#sample").value}`, {
+  faults: $("#fault").checked ? { [$("#faultStep").value]: 1 } : {}, throttle_ms: $("#throttle").checked ? 200 : 0 });
+$("#submitCustom").onclick = () => submit("/api/issues", { title: $("#ctitle").value, body: $("#cbody").value });
+
+loadSamples(); refresh(); setInterval(refresh, 1500);
+</script>
+</body>
+</html>

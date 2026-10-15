@@ -223,8 +223,8 @@ class Store:
             if new_state == WF.RUNNING:
                 fields.setdefault("started_at", ts)
                 fields.setdefault("finished_at", None)
-            if new_state in (WF.APPROVED, WF.REJECTED, WF.CANCELLED, WF.FAILED, WF.BLOCKED,
-                             WF.AWAITING_APPROVAL):
+            elif old in (WF.RUNNING, WF.QUEUED):
+                # finished_at = when automation stopped; human decision time lives in `approvals`.
                 fields.setdefault("finished_at", ts)
             cols = ", ".join(f"{k} = ?" for k in fields)
             vals = [json.dumps(v) if k in JSON_COLUMNS else v for k, v in fields.items()]
