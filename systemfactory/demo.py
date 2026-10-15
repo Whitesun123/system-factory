@@ -26,6 +26,13 @@ def init_demo_repo(settings: Settings, *, force: bool = False) -> str:
             settings.worktrees_dir.mkdir()
         shutil.rmtree(repo)
     shutil.copytree(DEMO_TEMPLATE, repo, ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache"))
+    # A checkout made with core.autocrlf=true (the Git for Windows default) has CRLF files; the demo repo is
+    # always generated with LF so results do not depend on how System Factory itself was cloned.
+    for f in repo.rglob("*"):
+        if f.is_file() and f.suffix in (".py", ".md", ".toml", ".txt", ".cfg"):
+            data = f.read_bytes()
+            if b"\r\n" in data:
+                f.write_bytes(data.replace(b"\r\n", b"\n"))
     git.run(repo, "init", "-q", "-b", "main")
     git.run(repo, "add", "-A")
     git.run(repo, "commit", "-q", "-m", "Initial shopcart demo library (contains planted bugs)")

@@ -80,3 +80,13 @@ def test_search_applies_fix_and_restores_rejected_candidates():
     res = repair.search(files.__getitem__, files.__setitem__, ["f.py"], {"shipping"}, 1,
                         lambda c: {"accepted": False}, lambda: None, max_evals=50)
     assert not res.found and files["f.py"] == SRC  # original restored
+
+
+def test_workspace_round_trip_preserves_crlf(tmp_path):
+    """Regression (Windows CI): restoring 'the original' must be byte-exact, whatever the line endings."""
+    (tmp_path / "src").mkdir()
+    raw = b"def f(x):\r\n    return x > 1\r\n"
+    (tmp_path / "src" / "a.py").write_bytes(raw)
+    ws = Workspace(tmp_path, writable=["src/*.py"])
+    ws.write_text("src/a.py", ws.read_text("src/a.py"))
+    assert (tmp_path / "src" / "a.py").read_bytes() == raw

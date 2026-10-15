@@ -136,7 +136,9 @@ class Workspace:
         rel = self.rel(path)
         if rel == ".git" or rel.startswith(".git/"):
             raise PermissionError("access to .git is not allowed")
-        return (self.root / rel).read_text(encoding="utf-8")
+        # newline="": keep line endings exactly, so writing back what was read restores the file byte-for-byte
+        with open(self.root / rel, encoding="utf-8", newline="") as f:
+            return f.read()
 
     def write_text(self, path: str, text: str) -> None:
         rel = self.rel(path)

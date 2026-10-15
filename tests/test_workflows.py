@@ -180,3 +180,26 @@ def test_concurrent_workers_do_not_double_process(orch):
     for i in ids:
         claims = [e for e in orch.store.get_events(i) if "claimed by" in e["message"]]
         assert len(claims) == 1
+
+
+def test_workflow_succeeds_from_a_crlf_checkout(tmp_path, monkeypatch):
+    """Regression (Windows CI): a template checked out with core.autocrlf=true has CRLF files."""
+    import shutil
+
+    from systemfactory import demo
+    from systemfactory.config import DEMO_TEMPLATE, Settings
+    from systemfactory.orchestrator import Orchestrator
+
+    crlf = tmp_path / "template"
+    shutil.copytree(DEMO_TEMPLATE, crlf, ignore=shutil.ignore_patterns("__pycache__"))
+    for f in crlf.rglob("*.py"):
+        f.write_bytes(f.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
+    monkeypatch.setattr(demo, "DEMO_TEMPLATE", crlf)
+    settings = Settings(data_dir=tmp_path / "data")
+    demo.init_demo_repo(settings)
+    assert b"\r\n" not in (settings.demo_repo / "shopcart" / "cart.py").read_bytes()
+    orch = Orchestrator(settings)
+    wf_id = submit_sample(orch, "shipping")
+    run_all(orch)
+    wf = orch.store.get_workflow(wf_id)
+    assert wf["state"] == WF.AWAITING_APPROVAL, wf["error"]
