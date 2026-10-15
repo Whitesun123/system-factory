@@ -1,0 +1,6 @@
+# Runtime state: SQLite DB, generated demo repository, worktrees
+data/
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
