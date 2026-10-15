@@ -221,3 +221,54 @@ Test names refer to files in `tests/`.
   rather than the loop grading its own work.
 - **Evidence:** `test_quality_gate_rejects_test_tampering_and_dangerous_code` (tampering after the loop is caught by
   the gate), `test_approval_requires_quality_gate_success`.
+
+---
+
+## D18. Reviewers propose executable checks; evidence outranks severity labels (Milestone 5)
+
+- **Problem:** With real local models, two reviewers approved an incomplete fix. The coder had fixed only the
+  reported function, and a related defect in a sibling function was untouched. In a 5-case benchmark, models also
+  (a) skipped the requested review procedure, (b) labelled a real defect "minor", and (c) raised blocking findings
+  against correct patches.
+- **Solution:** Reviewers must fill a `checks` array (`function`, literal-argument `call`, `expected`) for every
+  function in the changed files. System Factory gives them that function list, computed with `ast`. Checks are
+  validated (literal or pure-builtin arguments only; the expected value is emitted as a single-line `repr`) and
+  executed in the sandbox. An executed failure becomes **blocking** whatever label the model gave it. A blocking
+  claim from a model without a confirmed probe is **downgraded**. A malformed probe (`NameError`, `ImportError`, …)
+  never counts as confirmation.
+- **Reason / tradeoff:** Executed evidence is more reliable than a model's judgement in both directions. The cost:
+  a wrong expected value produces a false block. That surfaces as a stall or escalation, not a bad merge.
+- **Evidence:** The benchmark (`scripts/eval_reviewers.py`, 5 labelled patches): phi4:14b went from 3/5 to 5/5 in
+  both roles with no false blocks; the probe rule downgraded phi4's two false blockers on a correct patch.
+  Offline tests: `test_confirmed_check_upgrades_and_unverified_llm_blocker_downgrades`, `test_check_to_probe_accepts_only_safe_calls`,
+  `test_f1_multiline_expected_cannot_inject_doctest_lines`. Five cases is far too few to generalise from.
+
+## D19. Local Ollama as the second runtime; one provider is one provider (Milestone 5)
+
+- **Problem:** The simulated coder and reviewers prove the control flow but not real AI behaviour. Paid APIs need
+  approval and a budget.
+- **Solution:** An `ollama` runtime selected per workflow (`--runtime ollama` or `SF_RUNTIME`). It uses a tool-using
+  LLM coder (allow-listed JSON actions, edits limited to target files, rejected fingerprints refused) and two LLM
+  reviewers with different focus areas and models. Every model call, including failures, is an `llm_calls` row with
+  model, digest, execution type, tokens reported by Ollama and timing. In the real runtime the system never silently
+  substitutes simulated reviewers. Diversity is labelled "different models on ONE provider".
+- **Reason / tradeoff:** Local inference is free and private, but quality varies a lot between 12–14B models, and
+  Reviewer B (mistral-nemo) scored lowest. The deterministic runtime stays the default so tests and CI need no GPU.
+- **Evidence:** One real end-to-end run (bulk discount: the coder ran tests, then fixed both boundaries; both reviewers
+  approved; gate SUCCESS in 43 s). Offline: `test_real_runtime_with_unavailable_provider_fails_honestly`,
+  `test_case_c_llm_coder_cannot_edit_tests_or_escape_scope`. Not yet validated: real scenarios B–E with the final
+  code.
+
+## D20. Hardening a process-level sandbox, and saying what it is not (Milestone 5.1)
+
+- **Problem:** A security review found that model-written probes ran unvetted; a reviewer check could smuggle doctest
+  lines into a probe; the unauthenticated localhost API accepted cross-site requests; concurrent approvals could both
+  be recorded; POSIX timeouts left grandchildren running. Separately, Windows CI failed because checkouts with
+  `core.autocrlf=true` turned the demo into CRLF, and "restoring the original" rewrote files as LF.
+- **Solution:** Static AST vetting of untrusted probes, single-line `repr` for expected values, a Host allow-list and
+  Origin check, the state transition as the atomic approval gate, process-group kill, byte-exact workspace reads,
+  LF-normalised demo generation and `.gitattributes`.
+- **Reason / tradeoff:** Each fix is small and testable. None of them turns process isolation into a security boundary:
+  untrusted repositories still need a container, which is planned and not implemented.
+- **Evidence:** `tests/test_security_regressions.py` (F1–F6), `test_workspace_round_trip_preserves_crlf`,
+  `test_workflow_succeeds_from_a_crlf_checkout`; GitHub Actions on Windows and Ubuntu.

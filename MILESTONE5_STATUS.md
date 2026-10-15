@@ -122,6 +122,12 @@ Observations:
   + `test_case_c_llm_coder_cannot_edit_tests_or_escape_scope` + `test_approval_requires_quality_gate_success`.
 - Sanitized deterministic evidence: `examples/evidence/case-a-revision-after-review/`,
   `examples/evidence/case-b-repeated-solution-escalated/`. Real screenshots: `docs/screenshots/`.
-- Not done in 5.1: reconciling `PRESENTATION.md` / `DEMO.md` with the Ollama runtime (they still describe the
-  simulated runtime as the only one; treat those sections as historical). Isolation remains process-level, not a
-  container, and is not suitable for untrusted repositories.
+- Windows CI root cause (found from the CI log, reproduced locally with an `autocrlf=true` clone): Windows checkouts
+  turned the demo template into CRLF, and `Workspace.read_text` used universal newlines, so restoring a rejected candidate
+  rewrote the file as LF and left the worktree dirty (14 workflow tests failed on Windows only). Fixed with byte-exact
+  reads, LF demo generation and `.gitattributes`; regression tests `test_workspace_round_trip_preserves_crlf` and
+  `test_workflow_succeeds_from_a_crlf_checkout`.
+- `PRESENTATION.md` and `DEMO.md` now describe both runtimes and list the real-model scenarios that remain unverified;
+  `DECISIONS.md` gained D18–D20 for the Milestone 5 decisions.
+- Still true: isolation is process-level, not a container, and is not suitable for untrusted repositories. Real-model
+  scenarios B–E have not been run with the final code.

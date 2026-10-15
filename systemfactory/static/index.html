@@ -260,7 +260,7 @@ function renderIterations(d) {
         ${i.findings.map(f => `<div class="finding small">${esc(f.reviewer)}: ${esc(f.title)} ${f.confirmed === true ? "<b>(confirmed by re-execution)</b>" : f.confirmed === false ? "<b>(unconfirmed → downgraded)</b>" : ""}<span class="d">${esc(f.detail || "")}</span></div>`).join("")}
         ${i.suggestions.map(s => `<div class="small">→ ${esc(s)}</div>`).join("")}
         ${i.probes.map(pr => `<pre>${esc(pr)}</pre>`).join("")}
-      </div>`).join("") : (it.decision ? `<span class="muted small">No findings.</span>` : `<span class="muted small">pending</span>`);
+      </div>`).join("") : (it.decision ? `<div class="muted small">No findings.</div>` : `<div class="muted small">pending</div>`);
     const card = `<div class="iter ${open.includes(it.status) ? "open" : ""}">
       <h3>Iteration ${it.n} ${chip(it.status)} <span class="small muted">${p.mutation ? esc(p.file + " " + p.mutation) : "coding…"}</span></h3>
       <div class="small muted">${p.coder ? `coder: ${esc(p.coder)}${p.model ? ` <b>${esc(p.model)}</b> (real local, ${p.turns} turns${p.feedback_given === false && it.n > 1 ? ", feedback WITHHELD" : ""})` : ""} · strategy: ${esc(p.strategy)} · base ${esc((p.base || "").slice(0, 10))} · fingerprint ${esc((it.fingerprint || "").slice(0, 10))}` : ""}

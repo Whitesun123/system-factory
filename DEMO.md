@@ -1,5 +1,9 @@
 # 5-Minute Demo
 
+Two parts. **Part 1** uses the deterministic runtime: no GPU or network needed, every result reproducible, and the
+same scenarios run in CI. Use it for the live demo. **Part 2** is optional and shows the same pipeline with real
+local models via Ollama. Present it only as "real inference, partially validated" (see the status table below).
+
 ## Before the demo (1 minute, off-screen)
 
 ```bash
@@ -27,11 +31,13 @@ too** (or run `init-demo --force`), because an existing demo repo is never overw
 | `feature` | CSV export request | **Blocked** at coding: needs an LLM or a human developer |
 | `support` | "How do I apply a coupon?" | Draft answer from README, waiting for approval |
 
-## Script
+## Part 1: deterministic runtime (recommended for the live demo)
 
-**0:00 to 0:30: Frame it.** Point at the header: *"Runtime: SIMULATED (no LLM)."* Say: "The control
-plane is real and deterministic. The coder and both reviewers are deterministic simulations, and the screen says
-so. The architecture is what I want to show: code, test, independent review, feedback, revise, gate, human."
+In the dashboard, set **Runtime** to **Deterministic simulation** before submitting.
+
+**0:00 to 0:30: Frame it.** Point at the header badge and the **Runtime & providers** panel. Say: "The control
+plane is deterministic in both runtimes. Here the coder and both reviewers are deterministic simulations, and every
+screen says so. The same pipeline runs real local models; I'll show what has been verified there at the end."
 
 **0:30 to 2:15: The review loop (bulk).** Submit "bulk discount at exactly 10 units". Open the **iterations** tab.
 - **Iteration 1:** the coder changes `> 10` to `>= 10`, and the deterministic tests are all green. Say: "Tests alone
@@ -56,13 +62,13 @@ iteration 1 and attempt 2 succeeded. Say: "A transient retry widens the search i
 driven by review across iterations." Then submit `coupon` with **Slow down repair** ticked and click **Cancel**
 during coding. The workflow is cancelled, the iteration is marked cancelled, and the worktree is clean.
 
-**3:45 to 4:30: Honest limits.** `feature` is **blocked** at coding (no LLM coding runtime). The header badge reads
-"SIMULATED: no real models; reviewers are independent by technique". Say: "When a real Claude key and a second
-provider are configured, the same panel runs them, and only then does it say multi-provider."
+**3:45 to 4:30: Honest limits.** `feature` is **blocked** at coding: neither runtime implements feature work yet.
+The badge reads "SIMULATED: no real models; reviewers are independent by technique". Say: "With Ollama the
+reviewers are real models, but two models on one runtime are still one provider, and the label says so."
 
 **4:30 to 5:00: Wrap.** Show the **Log** tab, where every phase transition (`Iteration 1: reviewing -> aggregating`) and
-every decision has an actor and a timestamp. Close with: "Next: a real coding provider that consumes the same
-feedback items, containers for isolation, and real token budgets."
+every decision has an actor and a timestamp. Click **Export evidence (.zip)**. Close with: "Next: run the
+real-model scenarios on the final code, then a container sandbox."
 
 ## CLI-only fallback
 
@@ -78,7 +84,31 @@ python -m systemfactory show 2
 python -m systemfactory approve 1 --by "Your Name" --comment "verified"
 ```
 
+## Part 2: real local inference with Ollama (optional)
+
+Prerequisites: Ollama running and the models pulled (README > Configure Ollama). Then `python scripts\check_models.py`
+must report all three models as installed. That script only lists models; it does not run inference.
+
+Pick **Real local inference (Ollama)** in the dashboard and submit `checkout` or `bulk`. Show the **agents** tab: every
+model call with model and digest, the tokens reported by Ollama, timing, the coder's tool calls (`run_tests`,
+`submit`), and each reviewer's executed checks. A cold model load takes 7–25 s on an RTX 5080.
+
+| Real-model scenario | Status |
+|---|---|
+| A. Genuine bug fixed by the real coder and approved by real reviewers | **Observed once** (bulk discount, 43 s) on earlier Milestone 5 code |
+| B. Incomplete first fix → real reviewer feedback → revision → gate | **Not validated** with the final code. An earlier run was a real *false approval*, which led to the executed-checks design (DECISIONS D18) |
+| C. Repeated solution / stall with a real coder (feedback ablation) | **Not validated** |
+| D. Provider unavailable / model timeout | Unavailable: covered offline against a closed port. Real model timeout: **not validated** |
+| E. Approval guard on real-runtime workflows | Guard verified deterministically. **Not run** inside `scripts/real_demo.py` |
+
+To run all five: `python scripts\real_demo.py`. It writes evidence to `data-real-demo/evidence/` and checks results
+against an oracle the agents never see. If a model fails, the run shows the real failure; it never substitutes a
+simulation.
+
 ## Evidence this demo works
 
-`python -m pytest -q` passes 46 tests. They include the same scenarios end to end, with real git worktrees
-and real pytest runs: `tests/test_workflows.py`.
+- `python -m pytest -q` runs the deterministic suite, including Part 1's scenarios end to end with real git worktrees and
+  real pytest runs (`tests/test_workflows.py`, `tests/test_review_loop.py`). It runs on Windows and Ubuntu in GitHub
+  Actions.
+- Sanitized evidence from deterministic runs of Part 1: `examples/evidence/case-a-revision-after-review/` and
+  `examples/evidence/case-b-repeated-solution-escalated/`. Screenshots: `docs/screenshots/`.

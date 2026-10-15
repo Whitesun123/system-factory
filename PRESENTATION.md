@@ -2,97 +2,127 @@
 
 ## The 2-minute explanation
 
-> **What it is.** System Factory takes an incoming issue (a bug, a feature request or a support question)
-> and moves it through the same stages a good engineering team uses: triage, requirements, plan, code,
-> test, review, and then a human sign-off.
+> **What it is.** System Factory takes an incoming issue (bug, feature request or support question) through the
+> stages a good engineering team uses: triage, requirements, plan, an isolated workspace, a failing reproduction
+> test, then a loop of **coding → deterministic tests → independent review → evidence verification → feedback →
+> revision**, a final quality gate, and a human decision. It never merges, pushes or deploys.
 >
-> **The key design choice.** The *control flow* is not AI. A small deterministic orchestrator owns the state
-> machine: which step runs next, how many retries, time and compute budgets, cancellation, and the approval
-> gate. AI-style work happens only *inside* a step, through a narrow interface with explicit permissions. That
-> makes the system testable and auditable, and it guarantees a human always gets the final say.
+> **The key design choice.** The *control flow* is not AI. A deterministic orchestrator owns the state machine:
+> which step runs next, retries, iteration limits, time/token/cost budgets, cancellation and the approval gate.
+> Model-backed work happens only *inside* a step, through a narrow interface with explicit permissions. The
+> orchestrator decides what happens next; a model never does.
 >
-> **How we know a fix is real.** For a bug, the QA role turns the example from the issue into a test and
-> proves it **fails** on the current code. Then an implementation loop runs in an isolated git worktree:
-> code, run the tests, and have **at least two independent reviewers** check the actual diff against the
-> requirements and the test evidence. Their findings are merged into specific, evidence-backed feedback, and
-> each behavioural claim is re-executed as a probe so a made-up finding can't block the fix. The feedback goes back
-> to the coder for the next revision.
+> **How we know a fix is real.** The QA role turns the issue's example into a test and proves it **fails** on the
+> current code. A patch counts only when that test passes, the whole suite passes, and at least two independent
+> reviewers have no *verified* blocking finding. Reviewer claims are not trusted as text: reviewers propose
+> executable checks, and System Factory runs them in the sandbox. A failing check becomes blocking feedback for
+> the next revision; a claim that cannot be demonstrated is downgraded.
 >
-> **How it stops.** The loop ends in one of two ways. Either there are no blocking findings, and an independent
-> quality gate re-verifies every acceptance criterion. Or it detects that it is stuck (the same patch again, the
-> same failures, or no progress) or hits its iteration, time or cost budget, and escalates to a human as
-> *blocked*. A human approval is always required, and approval never merges.
+> **How it stops.** Either there are no verified blocking findings and the quality gate re-verifies every
+> acceptance criterion, or the loop detects it is stuck (same patch, same failures, no progress) or hits a budget
+> and escalates to a human as *blocked*.
 >
-> **What's real today.** The orchestrator, the loop, stall detection, budgets, worktree isolation, the quality
-> gate and the dashboard are real and covered by 46 tests. The coder and both reviewers are honestly
-> *simulations*: deterministic techniques, not LLMs, because no model runtime is configured. The two reviewers are
-> independent by technique (one executes documented examples, one analyses the diff), not by model. Adapters for
-> Claude and for any other provider exist and switch on with keys and budget approval.
->
-> **What's next.** A real coding provider that consumes the same feedback items, real multi-provider review,
-> containers, and PostgreSQL.
+> **What's real today.** Two runtimes share one pipeline. The **deterministic runtime** (search-based repair plus
+> two rule-based reviewers) is fully tested and in CI. The **Ollama runtime** (a tool-using LLM coder and two LLM
+> reviewers on local models) is implemented. It completed one real end-to-end fix, but the final versions of the
+> harder real scenarios have not been re-run yet. Two Ollama models are **one provider**, and the docs and
+> dashboard say so.
+
+## What is real, what is simulated, what is unverified
+
+| Category | Components | Evidence |
+|---|---|---|
+| **A. Deterministic runtime (verified)** | Orchestrator, state machine, iterations, stall detection, budgets, worktree isolation, quality gate, approval guard; search-based repair coder; `simulated-spec` and `simulated-diff` reviewers | Offline test suite on Windows and Ubuntu CI; sanitized evidence in `examples/evidence/` |
+| **B. Real local Ollama runtime (observed earlier in Milestone 5, on earlier code)** | `qwen2.5-coder:14b` coder: real tool calls, real patch; `phi4:14b` + `mistral-nemo:12b` reviewers | One real end-to-end success (bulk discount, 43 s). One real *false approval* of an incomplete fix, which led to the executed-checks design. A 5-case reviewer benchmark (phi4 5/5, mistral-nemo 3/5). Details in `MILESTONE5_STATUS.md` |
+| **C. Implemented, not yet validated with real models** | Real scenarios B (revision after real review), C (stall via feedback ablation), D (real model timeout), E (approval guard inside `scripts/real_demo.py`); the final executed-checks prompt in a full real loop | Offline tests cover the code paths with test doubles and an unreachable port; `scripts/real_demo.py` has not been run |
+| **D. Planned** | Container sandbox, a larger reviewer benchmark and Reviewer B choice, a second real provider (Claude or command adapter, needs approval), PostgreSQL | — |
+
+## The orchestrator and the LLM roles
+
+- The **orchestrator** is plain Python. It owns ordering, attempts, iterations, budgets, the decision rules
+  (`loop.assess_progress`) and every state transition. It is identical in both runtimes.
+- A **role** receives a `StepContext`. It can write only allow-listed files in its own worktree and run fixed
+  commands with a scrubbed environment. It reports by returning output or raising `Transient`, `Blocked` or
+  `Permanent`.
+- The **LLM coder** is one such role. It chooses one JSON action per turn (`list_files`, `read_file`, `run_tests`,
+  `submit`). It has no shell, its edits are limited to the plan's target files, and every action is a `tool_calls`
+  row.
+- The **LLM reviewers** are adapters behind the same `Reviewer` interface as the deterministic ones. Each gets a
+  deep copy of the same bundle (diff, requirements, test evidence, history) and cannot see the other's output.
+- **Evidence verification** belongs to the orchestrator side, not to a model. Tests, probes and reviewer checks are
+  executed; model-written probes are statically vetted first.
+
+## Why review happens *between* coding iterations
+
+The original design (Milestone 3) reviewed once, at the end, and retried coding blindly on failure. Tests alone
+passed a fix that was incomplete.
+
+- **Benefit:** a defect found in review becomes specific, executable feedback (a failing check) for the *next*
+  revision, instead of a rejection at the very end. Required probes accumulate, so a later revision cannot
+  silently undo an earlier fix. Repeated patches are detected by fingerprint.
+- **Cost:** every iteration pays for a test run and at least two reviews. In the deterministic bulk case that's
+  about 23 test runs instead of about 12. With real models it's about 4–8 extra model calls per iteration.
+- **Limitations:**
+  - A reviewer's expected value can be wrong. A wrong check produces a false block, which surfaces as a stall or
+    escalation rather than a bad merge, but it still costs a human's time.
+  - Small local models skip review procedures unless forced into structured output. That is why checks are a
+    required schema field.
+  - Review quality depends heavily on the model: 3/5 to 5/5 on a 5-case benchmark, which is too small to
+    generalise from.
 
 ## How to explain any decision (the four-beat pattern)
-
-Use the same four beats every time. It keeps answers short and confident:
 
 1. **Problem:** "We needed X, and the risk was Y."
 2. **Solution:** "So we did Z."
 3. **Tradeoff:** "That costs us A. We accepted it because B."
 4. **Evidence:** "And we know it works because test or demo C shows it."
 
-Example (D4): "We needed agents to change code without ever touching main. **So** every workflow gets its own
-git worktree and branch. **That costs** some branch clutter, which is fine because the branches are the audit
-trail. **And** the end-to-end test checks that main's commit hash is identical before and after approval."
-
-Tips: lead with the problem, not the technology. Say the tradeoff out loud before someone asks for it. End on
-evidence, not adjectives.
+Example (D18): "A reviewer said a patch was fine, and another time a reviewer invented a blocker. **So**
+reviewer claims only count when an executed check demonstrates them. **That costs** an extra sandboxed run per
+check, and a wrong expected value can still block, but that escalates to a human instead of merging. **And** the
+benchmark showed the probe rule turning two false blockers into non-blocking notes, and a confirmed check catching
+an incomplete fix the model itself had labelled minor."
 
 ## Likely questions from a technical reviewer
 
 **"Is this actually using AI?"**
-Not yet for coding, and the UI says so in the header. The runtime is a deterministic simulation. The architecture
-is built so that an LLM provider drops into the role interface and reports tokens and cost into the existing
-budget counters. A Claude Code subscription is a development tool; an application runtime needs Claude API
-access and an approved budget.
+Optionally. The default and CI runtime is deterministic. The Ollama runtime calls real local models, and every call
+is recorded with model, digest, tokens reported by Ollama and timing. Only one real end-to-end run is documented;
+the harder real scenarios still need to be run with the final code.
 
-**"What's the automation rate?"**
-We don't claim one. The brief's ~95% is a long-term goal. Right now we can show which sample cases end where:
-2 bugs fixed and verified, 1 bug beyond the simulated agent, 1 unreproducible report, 1 feature handed off,
-1 support answer drafted. Measuring a real rate needs a real issue set and a real LLM runtime.
+**"Are these really independent reviewers?"**
+They are independent in input (deep-copied bundle, no shared output) and in technique or model. They are **not**
+provider-diverse: two models on Ollama are one runtime, and the label says exactly that. Claude (official SDK) and a
+generic command adapter exist for a second provider but are inactive without keys and approval.
 
 **"What stops an agent from cheating, for example by editing the test?"**
-Three layers. The coding role's workspace can write only the planned source files. The scope scan, which runs every iteration and again in the quality gate, fails
-the workflow if any test file changed in the fix diff. And the reproduction test is committed *before*
-coding, so the review compares against it. There's a test that simulates a tampering agent and checks the
-gate rejects it.
+The coder's workspace can write only the planned source files, so a write to `tests/` is refused as a tool error (a
+test exercises this on the LLM path). The scope scan fails any fix diff that touches tests, every iteration and again
+in the quality gate. The reproduction test is committed before coding starts. Approval is refused without a gate
+SUCCESS.
 
-**"Is it safe to run code from an issue?"**
-Only partly, and we document that. Today it's process-level isolation: secrets stripped from the environment,
-writes confined to the worktree, timeouts. That does not stop malicious code from reading files or using
-the network. Containers are the next milestone, and until then it should only run trusted issues.
+**"Is it safe to run on untrusted repositories?"**
+No. Isolation is process-level: scrubbed environment, worktree-confined writes, timeouts, process-tree kill, and
+static vetting of model-written probes. It does not stop malicious code in the target repository from reading files
+or using the network. A container sandbox is the next step; until then, run trusted repositories only.
+
+**"The API has no authentication?"**
+Correct, it is a single-user local tool. It binds to 127.0.0.1, refuses non-local Host headers (DNS rebinding) and
+refuses cross-origin state-changing requests (CSRF).
+
+**"What's the automation rate?"**
+Not claimed. A real rate needs a real issue set and repeated real runs.
 
 **"Why SQLite and not Postgres?"**
-Postgres isn't installed here, and the store is one class. SQLite in WAL mode with atomic claims is tested
-under concurrent workers. Swapping it out is an implementation change, not a redesign.
+Postgres wasn't needed yet, and the store is one class. SQLite in WAL mode with atomic claims is tested under
+concurrent workers.
 
-**"What happens if it crashes mid-run?"**
-Workers heartbeat. On restart, workflows with a stale lease go back to the queue, and their interrupted
-attempt is recorded as `interrupted`. Steps reset their worktree to the last checkpoint commit before
-rerunning.
+**"How do you stop it looping forever?"**
+Repeated fingerprint, identical failure signature, no decrease in blocking findings over two iterations, and hard
+budgets (iterations, loop time, tokens, dollars). Any of these sets the workflow to *blocked* with an escalation
+record.
 
-**"Isn't review too late? What if the first fix is wrong?"**
-That's what the loop is for. In the bulk-discount demo the first fix passes every test but fails review: a
-documented example of the same function is still wrong. The finding is confirmed by re-running it, both reviewers
-point at the same function, and the coder gets the exact failing call as a required probe. Iteration 2 fixes it.
+## Historical note (Milestone 4)
 
-**"Are these really two different models?"**
-No, and the dashboard says so. Both are deterministic reviewers using different techniques. Each review row records
-provider, model and a `simulated` flag, and "multi-provider" is shown only when two non-simulated providers actually
-completed reviews. Claude runs through the official SDK, and any other provider plugs in via the command adapter.
-
-**"How do you stop it looping forever and burning money?"**
-Four stop rules: a repeated patch fingerprint, an identical failure signature, no decrease in blocking findings over
-two iterations, and hard budgets (iterations, loop time, tokens, dollars). Any of them sets the workflow to
-*blocked*, with an escalation record that says why and what is still open.
-
+Until Milestone 4 the coder and reviewers were deterministic only, and the presentation said "no model runtime is
+configured". That remains true of the default runtime. The Ollama runtime was added in Milestone 5.
