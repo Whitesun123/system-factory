@@ -129,7 +129,8 @@ def test_case_c_llm_coder_cannot_edit_tests_or_escape_scope(orch, monkeypatch):
     ])
     monkeypatch.setattr(coders, "OllamaClient", lambda base_url=None, timeout=None: model)
     wf_id = submit_sample(orch, "shipping", runtime="ollama",
-                          options={"reviewers": ["simulated-spec", "simulated-diff"], "allow_simulated_reviewers": True})
+                          options={"reviewers": ["simulated-spec", "simulated-diff"], "allow_simulated_reviewers": True,
+                                   "execution": "local", "require_isolation": False})  # scripted test double
     run_all(orch)
     wf = orch.store.get_workflow(wf_id)
     assert wf["state"] == WF.AWAITING_APPROVAL and wf["data"]["quality_gate"]["status"] == "SUCCESS"

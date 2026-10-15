@@ -8,7 +8,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .config import Settings
-from .sandbox import Cancelled, CommandResult, Git, StepTimeout, Workspace, run_command, scrubbed_env
+from .execution import ExecutionBackend, IsolationUnavailable, resolve_backend
+from .sandbox import Cancelled, CommandResult, Git, StepTimeout, Workspace
 from .store import Store
 
 
@@ -35,6 +36,7 @@ class StepContext:
     attempt: int
     deadline: float
     _last_heartbeat: float = field(default=0.0)
+    _backend: ExecutionBackend | None = field(default=None)
 
     # ---- state
     @property
@@ -97,13 +99,32 @@ class StepContext:
     def workspace(self, writable: list[str]) -> Workspace:
         return Workspace(self.worktree, writable)
 
+    @property
+    def probes_dir(self) -> Path:
+        d = self.settings.data_dir / "probes" / f"wf-{self.wf_id}"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    @property
+    def backend(self) -> ExecutionBackend:
+        """The workflow's execution backend. Fails closed: never substitutes weaker isolation."""
+        if self._backend is None:
+            opts = self.wf["options"]
+            name = opts.get("execution") or self.settings.execution
+            try:
+                self._backend = resolve_backend(name, bool(opts.get("require_isolation", False)))
+            except IsolationUnavailable as e:
+                raise BlockedError(f"{e}. Nothing was executed; start Docker / build the sandbox image, or "
+                                   "explicitly choose the local backend for trusted code.")
+        return self._backend
+
     def run_python(self, *args: str, timeout: float | None = None) -> CommandResult:
-        """Run the project's interpreter inside the worktree with a scrubbed environment."""
+        """Run Python inside the worktree through the workflow's execution backend."""
+        backend = self.backend
         self.charge(test_runs=1)
-        env = scrubbed_env(extra={"PYTHONPATH": str(self.worktree)})
-        return run_command([sys.executable, *args], self.worktree,
-                           timeout=timeout or self.settings.command_timeout_seconds,
-                           env=env, should_stop=self.check_stop)
+        return backend.run_python(list(args), workdir=self.worktree, ro_dirs={self.probes_dir: "/sf/probes"},
+                                  timeout=timeout or self.settings.command_timeout_seconds,
+                                  should_stop=self.check_stop)
 
     def run_pytest(self, *paths: str, purpose: str | None = None) -> CommandResult:
         """Run pytest and persist the run (command, commit, exit code, pass/fail counts) as test evidence."""
@@ -120,7 +141,8 @@ class StepContext:
             "command": "python -m pytest -q -p no:cacheprovider " + " ".join(paths), "commit_sha": commit,
             "exit_code": res.exit_code, "timed_out": res.timed_out, "seconds": round(res.duration, 3),
             "summary": counts["summary"], "passed": counts["passed"], "failed": counts["failed"],
-            "errors": counts["errors"], "output_tail": res.output[-2000:]})
+            "errors": counts["errors"], "output_tail": res.output[-2000:],
+            "backend": f"{self.backend.name} ({self.backend.isolation})"})
         return res
 
 

@@ -37,12 +37,16 @@ class Settings:
     reviewer_a_model: str = field(default_factory=lambda: os.environ.get("SF_REVIEWER_A_MODEL", "phi4:14b"))
     reviewer_b_model: str = field(default_factory=lambda: os.environ.get("SF_REVIEWER_B_MODEL", "mistral-nemo:12b"))
     coder_max_turns: int = field(default_factory=lambda: int(os.environ.get("SF_CODER_MAX_TURNS", "6")))
+    # Execution backend for target/model-generated code: "local" (process isolation) or "docker" (container).
+    execution: str = field(default_factory=lambda: os.environ.get("SF_EXECUTION", "local"))
 
     def runtime_options(self, runtime: str) -> dict:
         """Workflow options that select a runtime; stored on the workflow so the run records its configuration."""
         if runtime == "ollama":
+            # Model-written patches and checks are untrusted code: container isolation is required by default.
             return {"runtime": "ollama", "coder": "ollama", "reviewers": ["ollama-a", "ollama-b"],
                     "allow_simulated_reviewers": False, "ollama_url": self.ollama_url,
+                    "execution": "docker", "require_isolation": True,
                     "models": {"coder": self.coder_model, "reviewer_a": self.reviewer_a_model,
                                "reviewer_b": self.reviewer_b_model}}
         return {"runtime": "simulated"}

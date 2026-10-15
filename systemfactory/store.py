@@ -230,6 +230,9 @@ class Store:
             cols = {r["name"] for r in c.execute("PRAGMA table_info(attempts)")}
             if "iteration" not in cols:
                 c.execute("ALTER TABLE attempts ADD COLUMN iteration INTEGER")
+            tcols = {r["name"] for r in c.execute("PRAGMA table_info(test_runs)")}
+            if "backend" not in tcols:
+                c.execute("ALTER TABLE test_runs ADD COLUMN backend TEXT")
             rcols = {r["name"] for r in c.execute("PRAGMA table_info(reviews)")}
             for col, typ in (("execution", "TEXT"), ("model_digest", "TEXT"), ("llm_call_id", "INTEGER"),
                              ("checks", "TEXT"), ("analysis", "TEXT")):
@@ -561,11 +564,12 @@ class Store:
     def add_test_run(self, wf_id: int, rec: dict) -> None:
         with self._conn() as c:
             c.execute("INSERT INTO test_runs(workflow_id, iteration, step, purpose, command, commit_sha, exit_code,"
-                      " timed_out, passed, failed, errors, summary, seconds, output_tail, created_at)"
-                      " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                      " timed_out, passed, failed, errors, summary, seconds, output_tail, created_at, backend)"
+                      " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                       (wf_id, rec.get("iteration"), rec["step"], rec["purpose"], rec["command"], rec.get("commit_sha"),
                        rec["exit_code"], int(rec.get("timed_out", False)), rec.get("passed"), rec.get("failed"),
-                       rec.get("errors"), rec.get("summary"), rec["seconds"], rec.get("output_tail"), _now()))
+                       rec.get("errors"), rec.get("summary"), rec["seconds"], rec.get("output_tail"), _now(),
+                       rec.get("backend")))
 
     def get_test_runs(self, wf_id: int) -> list[dict]:
         with self._conn() as c:

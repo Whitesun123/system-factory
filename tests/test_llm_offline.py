@@ -39,7 +39,8 @@ def test_recorder_persists_failed_calls(orch):
 
 def test_real_runtime_with_unavailable_provider_fails_honestly(orch):
     """Scenario D offline: runtime=ollama but the server is down -> retries, then FAILED with the real error."""
-    wf_id = submit_sample(orch, "bulk", runtime="ollama", options={"ollama_url": DEAD})
+    wf_id = submit_sample(orch, "bulk", runtime="ollama",  # trusted demo repo, no model output executes
+                          options={"ollama_url": DEAD, "execution": "local", "require_isolation": False})
     run_all(orch)
     wf = orch.store.get_workflow(wf_id)
     assert wf["state"] == WF.FAILED and "not reachable" in wf["error"]
