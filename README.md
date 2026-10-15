@@ -16,8 +16,10 @@ It never merges, pushes or deploys.
 | Orchestrator, state machine, retries, cancellation, budgets, crash recovery | **Working**, tested |
 | Persistent state (SQLite): workflows, steps, attempts, events, evidence, approvals | **Working**, tested |
 | Bug → failing reproduction test → fix in isolated worktree → re-test → review → approval | **Working** end to end on a real demo repo |
-| Coding agent | **Simulated**: deterministic search-based program repair. **No LLM is called.** |
-| Triage / PRD / plan / review / support roles | **Rule-based and template-based** (deterministic), labelled as such |
+| Iterative loop: coding → tests → independent reviewers → aggregated feedback → revision → quality gate | **Working**, tested; stall detection, iteration/time/token/cost budgets, escalation to `blocked` |
+| Coding agent | **Simulated**: deterministic search-based program repair that consumes review feedback. **No LLM is called.** |
+| Reviewers | Two **simulated** reviewers that use different techniques. Claude adapter (official SDK) and a generic command adapter for any provider exist but are **inactive** (no API key / SDK / budget approval). **No real model diversity is claimed.** |
+| Triage / PRD / plan / support roles | **Rule-based and template-based** (deterministic), labelled as such |
 | Dashboard over real state (no fake metrics) | **Working** |
 | Claude API / Agent SDK runtime | **Not implemented.** No API key configured; requires budget approval |
 | Container sandbox (Docker) | **Not yet.** Docker is installed but the daemon is not running; process-level isolation is used |
@@ -42,7 +44,7 @@ python -m systemfactory serve
 
 Then open http://127.0.0.1:8765.
 
-Run the test suite (about 75 seconds; it creates real git worktrees and runs real pytest):
+Run the test suite (about 3 minutes; it creates real git worktrees and runs real pytest):
 
 ```bash
 python -m pytest -q
@@ -53,8 +55,9 @@ python -m pytest -q
 | Command | Purpose |
 |---|---|
 | `init-demo [--force]` | Create the demo target repository (kept as-is if it exists) |
-| `submit --sample shipping\|pagination\|coupon\|not_reproducible\|feature\|support` | Submit a sample issue |
+| `submit --sample shipping\|pagination\|bulk\|coupon\|not_reproducible\|feature\|support` | Submit a sample issue |
 | `submit --title T --body B [--fault STEP=N] [--throttle-ms MS]` | Submit a custom issue, optionally with injected faults |
+| `submit ... [--coder simulated-stubborn] [--reviewers a,b] [--max-iterations N]` | Choose the coder (stubborn = test double that ignores feedback), reviewer adapters and loop limit |
 | `run` | Process the queue until idle |
 | `status` / `show ID` | List workflows / show steps, events and evidence |
 | `approve ID --by NAME [--comment C]` / `reject ID --by NAME` | Human decision |
@@ -72,6 +75,8 @@ systemfactory/
   context.py        what a role may use: logging, evidence, sandboxed commands, budgets
   roles.py          triage, requirements, architecture, infra, qa, coding, security, review, support
   repair.py         search-based program repair (the simulated coding agent)
+  loop.py           review-loop rules: finding aggregation, probe confirmation, stall/budget decisions
+  reviewers.py      reviewer adapters: simulated-spec, simulated-diff, claude, command:<name>
   sandbox.py        scrubbed env, timeouts, cancellation, workspace write guard, hermetic git
   api.py, static/   FastAPI service and dashboard
   demo.py, cli.py   demo repo setup, sample issues, CLI
@@ -88,10 +93,29 @@ data/                     (git-ignored) SQLite DB, generated demo repo, worktree
 - [PRESENTATION.md](PRESENTATION.md): 2-minute explanation and likely questions
 - [SYSTEM_FACTORY_HANDOFF.md](SYSTEM_FACTORY_HANDOFF.md): the original brief
 
+## Reviewer configuration
+
+Reviewers are chosen per workflow (`options.reviewers`) or globally with `SF_REVIEWERS` (default
+`simulated-spec,simulated-diff`). At least 2 independent reviews must complete in every iteration. If a configured
+adapter is unavailable, a simulated one is substituted, and the log and dashboard say so.
+
+| Adapter | Enable with |
+|---|---|
+| `simulated-spec`, `simulated-diff` | always available (deterministic) |
+| `claude` | `pip install anthropic`, `ANTHROPIC_API_KEY`, and `SF_ALLOW_PAID_INFERENCE=1` (uses `claude-opus-5-5`, metered at $4 / $20 per MTok) |
+| `command:<name>` | `SF_REVIEWER_CMD_<NAME>="<command>"` plus optional `_PROVIDER`, `_MODEL`, `_SIMULATED=0`, `_TIMEOUT`. The command reads the review bundle JSON on stdin and prints `{"verdict", "summary", "findings", "input_tokens", "output_tokens", "cost_usd"}` |
+
+Example for real multi-provider review (requires keys and your budget approval):
+
+```bash
+SF_REVIEWERS=claude,command:other SF_REVIEWER_CMD_OTHER="python my_other_provider_reviewer.py" SF_REVIEWER_CMD_OTHER_PROVIDER=other SF_REVIEWER_CMD_OTHER_SIMULATED=0 SF_ALLOW_PAID_INFERENCE=1 python -m systemfactory serve
+```
+
 ## Next milestones
 
 1. **Real LLM coding provider** (Claude API / Agent SDK) behind the same role interface and permission
    policies, with token/cost metering into the existing `usage` budget. Needs an API key and budget approval.
+   Its feedback input is already defined: the aggregated feedback items, required probes and rejected fingerprints.
 2. **Container sandbox**: run agent commands in Docker (no network, read-only base, worktree mounted).
 3. **PostgreSQL** store implementation (same `Store` interface) when multi-process deployment is needed.
 4. Richer QA: coverage-guided fault localisation, mutation testing of the generated test.

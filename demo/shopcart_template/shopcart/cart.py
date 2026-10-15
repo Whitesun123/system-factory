@@ -44,6 +44,23 @@ class Cart:
         return round(discounted + self.shipping(), 2)
 
 
+def bulk_discount_percent(quantity: int) -> float:
+    """Volume discount: 5% off for 10 or more units, 10% off for 50 or more units.
+
+    >>> bulk_discount_percent(9)
+    0.0
+    >>> bulk_discount_percent(10)
+    5.0
+    >>> bulk_discount_percent(50)
+    10.0
+    """
+    if quantity > 50:
+        return 10.0
+    if quantity > 10:
+        return 5.0
+    return 0.0
+
+
 def coupon_discount(code: str) -> float:
     """Return the discount percent for a coupon code, or 0.0 if the code is unknown."""
     return COUPONS.get(code.strip(), 0.0)

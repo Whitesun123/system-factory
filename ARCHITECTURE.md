@@ -60,9 +60,53 @@ Triage runs first and decides the work type; the remaining steps are then append
 
 | Type | Steps after triage |
 |---|---|
-| bug | requirements → plan → workspace → reproduce → coding → testing → security → review → approval |
-| feature | requirements → plan → workspace → coding → testing → security → review → approval |
-| support | support → review → approval |
+| bug | requirements → plan → workspace → reproduce → **[coding → testing → review → feedback]**ⁿ → quality_gate → approval |
+| feature | requirements → plan → workspace → **[coding → …]** (blocks at coding: no LLM coding runtime) |
+| support | support → answer_review → approval |
+
+## Implementation loop (coding ↔ review)
+
+```
+            ┌──────────────────────────── revise: feedback items + required probes + rejected fingerprints ─┐
+            ▼                                                                                               │
+ reproduce ─► coding ──► testing ──────────► review ─────────────────────► feedback ──┬─ pass ──► quality_gate ─► approval
+            (repair,    (repro, suite,       (≥2 independent adapters,     (aggregate,  │                (re-verify all,
+             feedback-   earlier probes,      each gets its own copy of     confirm      ├─ stalled ─┐     map acceptance
+             aware)      scope/security)      diff+PRD+tests+history)       probes,      └─ exhausted┴─► BLOCKED (escalation)
+                                                                            decide)
+```
+
+Each pass is one **iteration**, stored in the `iterations` table. It has its own state machine:
+
+```
+coding → testing → reviewing → aggregating → revise | passed | stalled | exhausted
+   (any open phase → failed | cancelled; coding/reviewing → stalled | exhausted on escalation)
+```
+
+| Phase | What happens | Evidence persisted |
+|---|---|---|
+| coding | The repair engine starts from the repro-test commit (iteration 1 or `restart_from_checkpoint`) or from the previous iteration's commit (`build_on_previous`). Every candidate must pass the repro test, **every required probe from earlier feedback**, and the full suite. Candidates whose patch fingerprint was already rejected are skipped. Lines named in feedback are tried first. | patch, fingerprint, strategy, addressed feedback IDs |
+| testing | Independent re-run of the repro test, full suite, all earlier probes, and the scope/security scan | test results per iteration |
+| review | Each configured adapter reviews a deep copy of the same bundle and cannot see the others' output. A reviewer error is recorded as `error`, never as approval. Fewer than `min_reviewers` (2) completed reviews means a retryable failure. | one `reviews` row per reviewer: provider, model, `simulated`, verdict, findings, tokens, cost |
+| feedback | Merges test findings and reviewer findings by location, marks corroboration, **re-executes every reviewer probe** (an unconfirmed blocking finding is downgraded to major), computes the failure signature and revision strategy, then decides | aggregated feedback items, decision, reason |
+
+**Decision rules** (`loop.assess_progress`, applied in this order):
+
+1. 0 blocking findings → **pass**.
+2. The patch fingerprint equals an earlier iteration's → **stalled** (repeated solution).
+3. The blocking-finding signature equals the previous iteration's → **stalled** (identical failure pattern).
+4. The blocking count did not decrease for `stall_window` consecutive iterations → **stalled** (no progress).
+5. `max_iterations`, `max_loop_seconds`, `max_cost_usd` or `max_llm_tokens` reached → **exhausted**.
+6. Otherwise → **revise**: the orchestrator re-arms the four loop steps, and the next iteration starts at coding.
+
+`stalled` and `exhausted` put the workflow in **blocked**, with an `escalation` record (reason, open blocking items,
+recommended action). A human `retry` restarts the loop at coding and, if needed, grants one more iteration.
+
+**Quality gate** re-verifies the final commit from scratch: repro test fails on base and passes now, full suite,
+all review probes, scope and security, final iteration passed with 0 blocking findings, at least 2 independent
+reviews, and budgets respected. It maps every PRD acceptance criterion to one of these checks; an unmappable
+criterion fails the gate. Only `SUCCESS` reaches `awaiting_approval`, and `approve` refuses a code workflow
+without a `SUCCESS` gate.
 
 ## Step execution and error taxonomy
 
@@ -92,7 +136,7 @@ retry means "try harder," not "try the same thing again."
   credentials helpers, hooks and aliases are never used. Commits use an agent identity.
 - **Timeouts and cancellation**: every command has a timeout; while it runs, the runner polls the cancel flag
   and the step deadline and kills the process tree (`taskkill /T /F`) if either fires.
-- **Security gate**: rejects fixes that touch tests or out-of-plan files, or that add secrets. Flags dangerous
+- **Scope/security scan** (every iteration, and again in the quality gate): rejects fixes that touch tests or out-of-plan files, or that add secrets. Flags dangerous
   calls (`eval`, `subprocess`, network) and large diffs.
 - **Audit log**: every transition, attempt, retry, decision and actor is an `events` row.
 
@@ -108,8 +152,10 @@ issue *is executed* during reproduction. See DECISIONS.md D5.
 | `steps` | workflow_id, seq, name, role, status, attempts, output, error, started/finished |
 | `attempts` | step_id, n, status, error, detail, started/finished |
 | `events` | workflow_id, ts, level, step, actor, message, data |
-| `evidence` | workflow_id, step, kind (prd, plan, test_run, repair_search, patch, security, diff, review, support_answer), title, content, data |
+| `evidence` | workflow_id, step, kind (prd, plan, test_run, repair_search, patch, review, feedback, quality_gate, diff, support_answer), title, content, data |
 | `approvals` | workflow_id, decision, actor, comment, ts |
+| `iterations` | workflow_id, n, status (loop phase), base, commit, fingerprint, patch, tests, feedback, failure_signature, blocking_count, decision, decision_reason |
+| `reviews` | workflow_id, iteration, reviewer, adapter, provider, model, simulated, verdict, summary, findings, tokens, cost_usd, seconds, error |
 
 ## Budgets
 

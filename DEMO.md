@@ -10,15 +10,18 @@ python -m systemfactory init-demo
 python -m systemfactory serve
 ```
 
-Open http://127.0.0.1:8765. To start from an empty board, stop the server, delete the `data/` folder
-(it holds only generated state), and start again.
+Open http://127.0.0.1:8765. To start from an empty board, stop the server, move or delete the `data/` folder
+(it holds only generated state), and start again. **After pulling a new version of the demo template, do this
+too** (or run `init-demo --force`), because an existing demo repo is never overwritten.
 
 ## The planted bugs (in `demo/shopcart_template`)
 
 | Sample | Bug | Expected outcome |
 |---|---|---|
-| `shipping` | `subtotal() > 50` should be `>=` | Fixed on attempt 1 (tier 1: comparison operators) |
-| `pagination` | `items[start:start + page_size - 1]` | Attempt 1 fails, retry fixes it on attempt 2 (tier 2: drop `- 1`) |
+| `bulk` | `quantity > 10` **and** `quantity > 50` should both be `>=`; the issue reports only the first | **Fails review in iteration 1, corrected in iteration 2**, quality gate SUCCESS |
+| `bulk` + stubborn coder | same, but the coder is a test double that ignores feedback | **Blocked** in iteration 2: "Repeated solution", escalated |
+| `shipping` | `subtotal() > 50` should be `>=` | Passes review in iteration 1 |
+| `pagination` | `items[start:start + page_size - 1]` | Coding attempt 1 fails, the retry fixes it on attempt 2 (tier 2: drop `- 1`) |
 | `coupon` | Codes should be case-insensitive (needs `.upper()`) | Beyond single-token repair: 3 attempts, then **failed** with evidence |
 | `not_reproducible` | Report is wrong; the example already passes | **Blocked**: "could not reproduce" |
 | `feature` | CSV export request | **Blocked** at coding: needs an LLM or a human developer |
@@ -27,36 +30,39 @@ Open http://127.0.0.1:8765. To start from an empty board, stop the server, delet
 ## Script
 
 **0:00 to 0:30: Frame it.** Point at the header: *"Runtime: SIMULATED (no LLM)."* Say: "The control
-plane is real and deterministic. The coding agent is a search-based repair engine, not an LLM. I'll show you
-exactly where an LLM would plug in."
+plane is real and deterministic. The coder and both reviewers are deterministic simulations, and the screen says
+so. The architecture is what I want to show: code, test, independent review, feedback, revise, gate, human."
 
-**0:30 to 2:00: Happy path (shipping).** Submit the "free shipping at exactly $50" sample. While it runs:
-- Point out each pipeline chip turning green (triage → … → review), then **approval: waiting**.
-- **Evidence** tab: open "Reproduction test on base commit (expected to FAIL)" and show the failing doctest.
-  Then show "after fix (expected to PASS)" and the full suite passing.
-- **Diff** tab: one line changes, `>` → `>=`, plus the generated test file.
-- Say: "Main is untouched. This lives on branch `sf/wf-N` in its own worktree."
-- Type a name and click **Approve**. The banner says the branch is ready for a human to merge. "It never merges itself."
+**0:30 to 2:15: The review loop (bulk).** Submit "bulk discount at exactly 10 units". Open the **iterations** tab.
+- **Iteration 1:** the coder changes `> 10` to `>= 10`, and the deterministic tests are all green. Say: "Tests alone
+  would ship this."
+- The two reviewers got the same diff, requirements and test evidence, and neither saw the other's output.
+  `simulated-spec` executes the function's documented examples and **blocks**: `bulk_discount_percent(50)` returns
+  5.0, documented 10.0. `simulated-diff` independently notes the same `>` pattern left on line 57.
+- **Aggregated feedback F1:** blocking, **corroborated by both reviewers**, "confirmed by re-execution", with a
+  suggestion and a **required probe**. The decision is **revise**, and the next revision builds on the previous patch.
+- **Iteration 2:** "addresses F1 with 1 required probe". The coder fixes line 57, the tests and the probe pass, and
+  both reviewers approve.
+- **Quality gate SUCCESS:** every PRD acceptance criterion is ticked off against a re-run check. Type a name and
+  **Approve**. Say: "Approval is a recorded decision, not a merge."
 
-**2:00 to 3:00: Error and retry (pagination).** Submit the pagination sample.
-- **Attempts** tab: coding attempt 1 **failed**, "Tier 1 search … evaluated 3 candidates." Attempt 2 **succeeded**.
-- Say: "Retries widen the search. A retry isn't a blind repeat." Show the diff: `- 1` removed.
-- Optional: submit `shipping` with **Inject a transient fault in reproduce** ticked. The log shows
-  `INJECTED transient fault`, backoff, then success.
+**2:15 to 3:00: Stall detection.** Tick **stubborn coder**, then submit `bulk` again. Iteration 2 resubmits the same
+patch, and the workflow is **blocked** with "Repeated solution … same fingerprint". The red banner lists the open
+blocking item and the recommended action. Say: "It escalates instead of looping. The iteration count, loop time,
+tokens and cost are all budgeted."
 
-**3:00 to 3:45: Cancellation.** Select `coupon`, tick **Slow down repair**, and submit. When the coding chip shows
-attempt 3, click **Cancel**. The state becomes `cancelled` within about a second, and the coding attempt is
-marked `cancelled` in the Attempts tab. Say: "The running test process was killed, and the half-applied
-mutation was rolled back. The worktree is clean."
+**3:00 to 3:45: Retries and cancellation.** Submit `pagination`. The **Attempts** tab shows coding attempt 1 failed in
+iteration 1 and attempt 2 succeeded. Say: "A transient retry widens the search inside an iteration; a revision is
+driven by review across iterations." Then submit `coupon` with **Slow down repair** ticked and click **Cancel**
+during coding. The workflow is cancelled, the iteration is marked cancelled, and the worktree is clean.
 
-**3:45 to 4:30: Honest limits.** Submit `coupon` without the slow-down option. It fails after 3 tiers, and the
-banner says "retries exhausted." Submit `feature`: it is **blocked**, with the message that an LLM coding
-runtime is not configured. Say: "When the system can't do something, it says so and hands off. It does not
-pretend."
+**3:45 to 4:30: Honest limits.** `feature` is **blocked** at coding (no LLM coding runtime). The header badge reads
+"SIMULATED: no real models; reviewers are independent by technique". Say: "When a real Claude key and a second
+provider are configured, the same panel runs them, and only then does it say multi-provider."
 
-**4:30 to 5:00: Wrap.** Show the **Log** tab, where every transition has an actor and a timestamp. Then
-show the **Data** tab, with the structured PRD, plan, test results and review checklist. Close with: "Next
-step: a Claude provider behind the same role interface, running in containers, with real token budgets."
+**4:30 to 5:00: Wrap.** Show the **Log** tab, where every phase transition (`Iteration 1: reviewing -> aggregating`) and
+every decision has an actor and a timestamp. Close with: "Next: a real coding provider that consumes the same
+feedback items, containers for isolation, and real token budgets."
 
 ## CLI-only fallback
 
@@ -74,5 +80,5 @@ python -m systemfactory approve 1 --by "Your Name" --comment "verified"
 
 ## Evidence this demo works
 
-`python -m pytest -q` passes 22 tests. They include the same scenarios end to end, with real git worktrees
+`python -m pytest -q` passes 46 tests. They include the same scenarios end to end, with real git worktrees
 and real pytest runs: `tests/test_workflows.py`.

@@ -6,11 +6,13 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from . import reviewers as reviewers_mod
 from .config import Settings, runtime_info
 from .demo import SAMPLES, init_demo_repo
 from .orchestrator import Orchestrator, Worker
@@ -30,6 +32,8 @@ class IssueIn(BaseModel):
 class SampleIn(BaseModel):
     faults: dict[str, int] = Field(default_factory=dict)
     throttle_ms: int = Field(default=0, ge=0, le=2000)
+    coder: Literal["simulated-repair", "simulated-stubborn"] = "simulated-repair"
+    max_iterations: int | None = Field(default=None, ge=1, le=10)
 
 
 class DecisionIn(BaseModel):
@@ -92,8 +96,20 @@ def create_app(settings: Settings | None = None, *, start_worker: bool = True) -
         opts = opts or SampleIn()
         s = SAMPLES[key]
         wf_id = orch.submit(s["title"], s["body"], source=f"sample:{key}",
-                            options={"faults": opts.faults, "throttle_ms": opts.throttle_ms})
+                            options={"faults": opts.faults, "throttle_ms": opts.throttle_ms, "coder": opts.coder},
+                            budget={"max_iterations": opts.max_iterations} if opts.max_iterations else None)
         return {"workflow_id": wf_id}
+
+    @app.get("/api/reviewers")
+    def reviewer_adapters():
+        out = []
+        for name in [*reviewers_mod.FACTORIES, *[n for n in settings.reviewers if n.startswith("command:")]]:
+            r = reviewers_mod.make(name)
+            ok, why = r.available()
+            out.append({"name": name, "provider": r.provider, "model": r.model, "simulated": r.simulated,
+                        "technique": r.technique, "available": ok, "reason": why,
+                        "configured": name in settings.reviewers})
+        return {"configured": settings.reviewers, "min_reviewers": settings.min_reviewers, "adapters": out}
 
     @app.get("/api/workflows")
     def list_workflows():
@@ -110,6 +126,7 @@ def create_app(settings: Settings | None = None, *, start_worker: bool = True) -
         return {"workflow": wf, "steps": steps, "attempts": orch.store.get_attempts(wf_id),
                 "events": orch.store.get_events(wf_id), "evidence": orch.store.get_evidence(wf_id),
                 "approvals": orch.store.get_approvals(wf_id),
+                "iterations": orch.store.get_iterations(wf_id), "reviews": orch.store.get_reviews(wf_id),
                 "policies": {s["role"]: ROLE_POLICIES.get(s["role"], {}) for s in steps}}
 
     @app.post("/api/workflows/{wf_id}/approve")

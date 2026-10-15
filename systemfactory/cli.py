@@ -46,6 +46,18 @@ def print_detail(orch: Orchestrator, wf_id: int) -> None:
     print("\nEvents:")
     for e in orch.store.get_events(wf_id):
         print(f"  {_fmt_time(e['ts'])} [{e['level']:<7}] {e['actor']:<14} {e['message'][:140]}")
+    its = orch.store.get_iterations(wf_id)
+    if its:
+        print("\nImplementation-loop iterations:")
+        for it in its:
+            patch = it["patch"] or {}
+            print(f"  #{it['n']} {it['status']:<10} blocking={it['blocking_count']} fp={(it['fingerprint'] or '-')[:10]}"
+                  f"  {patch.get('mutation', '-')}  ({patch.get('strategy', '-')})")
+            for r in orch.store.get_reviews(wf_id, it["n"]):
+                print(f"       reviewer {r['reviewer']:<16} {r['verdict']:<16} {r['provider']}/{r['model']}"
+                      f"{' [SIMULATED]' if r['simulated'] else ''}  findings={len(r['findings'])}")
+            if it["decision_reason"]:
+                print(f"       -> {it['decision_reason']}")
     print("\nEvidence:")
     for ev in orch.store.get_evidence(wf_id):
         print(f"  - [{ev['step']}] {ev['kind']}: {ev['title']}")
@@ -63,6 +75,10 @@ def main(argv: list[str] | None = None) -> None:
     sp.add_argument("--fault", action="append", metavar="STEP=N",
                     help="inject N transient failures into STEP (demo of retries)")
     sp.add_argument("--throttle-ms", type=int, default=0, help="slow repair candidates (makes cancellation visible)")
+    sp.add_argument("--coder", choices=["simulated-repair", "simulated-stubborn"], default="simulated-repair",
+                    help="simulated-stubborn is a labelled test double that ignores review feedback")
+    sp.add_argument("--reviewers", help="comma-separated reviewer adapters (default: settings / SF_REVIEWERS)")
+    sp.add_argument("--max-iterations", type=int)
     sub.add_parser("run", help="process queued workflows until idle")
     sub.add_parser("status", help="list workflows")
     sp = sub.add_parser("show", help="show one workflow in detail")
@@ -81,6 +97,10 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("demo", help="init demo repo, submit every sample issue, run, and summarise")
     sub.add_parser("runtime", help="show which agent runtime is active")
     args = p.parse_args(argv)
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
 
     settings = Settings.from_env()
     if args.cmd == "serve":
@@ -106,8 +126,11 @@ def main(argv: list[str] | None = None) -> None:
             title, body, source = args.title, args.body, "cli"
         else:
             sys.exit("provide --sample or --title")
-        options = {"faults": _parse_faults(args.fault), "throttle_ms": args.throttle_ms}
-        print(f"submitted workflow {orch.submit(title, body, source=source, options=options)}")
+        options = {"faults": _parse_faults(args.fault), "throttle_ms": args.throttle_ms, "coder": args.coder}
+        if args.reviewers:
+            options["reviewers"] = [r.strip() for r in args.reviewers.split(",") if r.strip()]
+        budget = {"max_iterations": args.max_iterations} if args.max_iterations else None
+        print(f"submitted workflow {orch.submit(title, body, source=source, options=options, budget=budget)}")
     elif args.cmd == "run":
         done = Worker(orch).run_until_idle()
         print(f"processed workflows: {done}")
@@ -131,6 +154,9 @@ def main(argv: list[str] | None = None) -> None:
         ids["fault"] = orch.submit(SAMPLES["shipping"]["title"] + " (with injected fault)",
                                    SAMPLES["shipping"]["body"], source="sample:shipping+fault",
                                    options={"faults": {"reproduce": 1}})
+        ids["stubborn"] = orch.submit(SAMPLES["bulk"]["title"] + " (stubborn coder test double)",
+                                      SAMPLES["bulk"]["body"], source="sample:bulk+stubborn",
+                                      options={"coder": "simulated-stubborn"})
         t0 = time.time()
         Worker(orch).run_until_idle()
         print(f"ran {len(ids)} workflows in {time.time() - t0:.1f}s\n")

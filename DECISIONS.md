@@ -135,3 +135,89 @@ Test names refer to files in `tests/`.
 - **Reason / tradeoff:** It is transparent and repeatable, but brittle on unusual wording. These are the first
   roles to hand to an LLM.
 - **Evidence:** `test_support_question_gets_draft_answer_for_approval`, plus triage assertions in the workflow tests.
+
+---
+
+## D13. Review is a loop inside the pipeline, not a final step
+
+- **Problem:** Previously review ran once, after coding and testing had "succeeded." A patch that passed tests
+  but was wrong had nowhere to go except to a human. Coding retries only widened the search; they never used
+  review findings.
+- **Solution:** Coding, testing, review and feedback form a loop: `[coding → testing → review → feedback]ⁿ →
+  quality_gate`. The feedback step decides `pass`, `revise`, `stalled` or `exhausted`. On `revise`, the
+  orchestrator re-arms the four steps and the next iteration starts at coding, carrying the feedback. The
+  orchestrator was extended with one loop-back edge, not rebuilt. Each iteration has its own validated phase
+  state machine (`IT` in `statemachine.py`), and every attempt row records its iteration.
+- **Reason / tradeoff:** Defects found in review are fixed automatically when possible, and every cycle stays
+  auditable. The cost is more test runs per workflow (the bulk demo uses about 23 instead of about 12) and more
+  moving parts. Transient retries (attempts) and review-driven revisions (iterations) are deliberately separate
+  dimensions.
+- **Evidence:** `test_first_implementation_fails_review_then_is_corrected`. Iteration 1 passes its tests but is
+  blocked by the spec reviewer (`bulk_discount_percent(50)` returns 5.0, documented 10.0). Iteration 2 builds on
+  the iteration-1 patch, satisfies the required probe, and both reviewers approve. Also `test_iteration_state_machine`.
+
+## D14. Reviewer adapters, with honest labels for simulation
+
+- **Problem:** The brief asks for at least two independent reviewers, ideally from different model providers. No
+  provider is configured here (no API key, no SDK, no budget approval). Two copies of one rule set would not be
+  independent, and calling them "multi-model" would be false.
+- **Solution:** A `Reviewer` interface with a registry: `simulated-spec` (executes the documented examples of every
+  function the patch touches), `simulated-diff` (static diff heuristics, sibling patterns, scope, loop history),
+  `claude` (official `anthropic` SDK, `claude-opus-5-5`, server-side refusal fallback, cost metered from
+  `usage`), and `command:<name>` (any provider or local model over a JSON stdin/stdout contract). Each reviewer gets
+  a **deep copy** of the bundle. Every review row stores `provider`, `model` and `simulated`. `diversity()` reports
+  real provider diversity only when 2 or more distinct non-simulated providers completed reviews; otherwise the
+  label says "SIMULATED". Test doubles of the Claude adapter are constructed with `label_simulated=True`.
+- **Reason / tradeoff:** The two simulated reviewers are independent by *technique* (one executes, one reads), which
+  is real but weaker than model diversity, and the UI says so. I didn't write a second vendor's SDK integration
+  that I couldn't verify; the command adapter makes any provider pluggable without guessing its API. The command
+  adapter runs a user-configured process with the user's environment, so it is trusted configuration.
+- **Evidence:** `test_reviewers_receive_independent_copies`, `test_claude_adapter_request_shape_cost_and_refusal`,
+  `test_claude_adapter_unavailable_without_key_and_approval`, `test_command_adapter_runs_external_reviewer`.
+  The dashboard shows "SIMULATED: no real models; reviewers are independent by technique, not by model diversity".
+
+## D15. Findings must carry evidence; probes are re-executed
+
+- **Problem:** Reviewers, especially LLM reviewers, can report defects that don't exist. Feeding a hallucinated
+  blocker to the coder wastes iterations or leads it to "fix" correct code.
+- **Solution:** A behavioural finding may carry an executable doctest **probe**. The aggregator re-runs every
+  reviewer probe on the current code. If the probe passes, the claim is not reproducible, so the finding is marked
+  `unconfirmed` and downgraded from blocking to major. Confirmed blocking probes become **required probes**: every
+  later candidate patch, every later test step, and the quality gate must pass them. Findings at the same
+  file and function from different reviewers are grouped and marked `corroborated`.
+- **Reason / tradeoff:** Blocking feedback becomes machine-checkable and accumulates monotonically, so a revision
+  cannot quietly regress an earlier fix. Findings without probes (style, design) can only be major or advisory
+  unless a reviewer marks them blocking, and those still need human judgment.
+- **Evidence:** `test_unconfirmed_llm_finding_is_downgraded_and_tokens_are_metered` (a fake LLM reviewer's false
+  blocker is downgraded; the workflow still passes), `test_aggregate_groups_corroborates_and_signs`.
+
+## D16. Stall detection and budgets end the loop with escalation, not more retries
+
+- **Problem:** An iterative agent can loop forever: resubmitting the same patch, oscillating, or burning tokens.
+- **Solution:** `loop.assess_progress` checks, in order: repeated solution (patch fingerprint seen before),
+  identical failure pattern (same blocking-finding signature as the previous iteration), no progress (blocking count
+  not decreasing over `stall_window` iterations), then `max_iterations`, `max_loop_seconds`, `max_cost_usd` and
+  `max_llm_tokens`. Token and cost overruns also stop the review step immediately (`ctx.charge`). Any of these
+  sets the workflow to **blocked** with an `escalation` record. The coder also escalates if no candidate satisfies
+  the feedback within its widest search tier. A human retry restarts the loop at coding with one extra iteration.
+- **Reason / tradeoff:** Escalating early is cheaper than an endless loop, but a strict `stall_window` can stop a
+  loop that would have converged one iteration later. Defaults are `max_iterations=4` and `stall_window=2`, and
+  both are configurable per workflow.
+- **Evidence:** `test_repeated_solution_is_detected_and_escalated` (a stubborn coder test double ignores feedback;
+  it is blocked in iteration 2, and after a human retry with a cooperative coder it converges in iteration 3),
+  `test_iteration_limit_escalates_instead_of_looping`, `test_cost_budget_blocks_and_escalates`, and the
+  parametrised `test_assess_progress`.
+
+## D17. SUCCESS means a re-verified quality gate; approval still required
+
+- **Problem:** "Reviewers approved" is not the same as "acceptance criteria met." The loop's own records could be
+  stale, or the worktree could be changed after the loop.
+- **Solution:** The `quality_gate` step re-runs everything on the final commit (repro test, suite, all review probes,
+  scope and security scan), checks the final iteration passed with 0 blocking findings and at least 2 completed
+  reviews, checks budgets, and maps **every PRD acceptance criterion** to a check. An unmappable criterion fails the
+  gate. Only `SUCCESS` reaches `awaiting_approval`, and `approve` refuses any code workflow without a `SUCCESS` gate.
+  Rejection is always allowed. Nothing merges.
+- **Reason / tradeoff:** The gate costs one more test pass, in exchange for SUCCESS being an independent claim
+  rather than the loop grading its own work.
+- **Evidence:** `test_quality_gate_rejects_test_tampering_and_dangerous_code` (tampering after the loop is caught by
+  the gate), `test_approval_requires_quality_gate_success`.

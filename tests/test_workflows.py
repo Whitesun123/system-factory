@@ -31,11 +31,12 @@ def test_bug_to_verified_fix_then_human_approval(orch):
     assert "failed" in data["reproduce"]["base_failure"]
     assert data["coding"]["mutation"].endswith("`>` -> `>=`") and data["coding"]["tier"] == 1
     assert data["testing"]["repro_passed"] and data["testing"]["suite_passed"]
-    assert data["security"]["files_changed"] == ["shopcart/cart.py"]
-    assert data["review"]["verdict"] == "recommend_approve"
+    assert data["testing"]["security"]["files_changed"] == ["shopcart/cart.py"]
+    assert data["feedback"]["decision"] == "pass" and data["feedback"]["iteration"] == 1
+    assert data["quality_gate"]["status"] == "SUCCESS"
 
     kinds = [e["kind"] for e in orch.store.get_evidence(wf_id)]
-    for k in ("prd", "plan", "test_run", "repair_search", "patch", "security", "diff", "review"):
+    for k in ("prd", "plan", "test_run", "repair_search", "patch", "review", "feedback", "diff", "quality_gate"):
         assert k in kinds
     # fix lives on the workflow branch in its own worktree; main is untouched
     branch_file = orch.git.out(wf["worktree"], "show", "HEAD:shopcart/cart.py")
@@ -140,11 +141,12 @@ def test_cancel_queued_and_running_workflows(orch):
     assert orch.store.get_step(wf_id, "coding")["status"] == STEP.CANCELLED
     assert [a["status"] for a in orch.store.get_attempts(wf_id) if a["step"] == "coding"][-1] == "cancelled"
     assert orch.git.out(wf["worktree"], "status", "--porcelain") == ""  # mutated file restored
+    assert orch.store.current_iteration(wf_id)["status"] == "cancelled"
     with pytest.raises(IllegalTransition):
         orch.cancel(wf_id)
 
 
-def test_security_gate_rejects_test_tampering_and_dangerous_code(orch):
+def test_quality_gate_rejects_test_tampering_and_dangerous_code(orch):
     wf_id = submit_sample(orch, "shipping")
     run_all(orch)
     wf = orch.store.get_workflow(wf_id)
@@ -154,12 +156,14 @@ def test_security_gate_rejects_test_tampering_and_dangerous_code(orch):
     with open(f"{wt}/shopcart/cart.py", "a", encoding="utf-8") as f:
         f.write("\nRESULT = eval('1+1')\n")
     orch.git.run(wt, "commit", "-qam", "tamper")
-    ctx = StepContext(orch.settings, orch.store, orch.git, wf_id, "security", "security", 1, time.time() + 60)
-    with pytest.raises(PermanentError, match="security gate failed"):
-        roles.security(ctx)
+    ctx = StepContext(orch.settings, orch.store, orch.git, wf_id, "quality_gate", "quality-gate", 1, time.time() + 60)
+    with pytest.raises(PermanentError, match="quality gate failed: scope, security"):
+        roles.quality_gate(ctx)
     report = orch.store.get_evidence(wf_id)[-1]
-    assert report["kind"] == "security" and report["data"]["passed"] is False
-    assert "tests-modified" in report["content"] and "dangerous-call" in report["content"]
+    assert report["kind"] == "quality_gate" and report["data"]["status"] == "FAILED"
+    assert "coding agent changed tests/test_cart.py" in report["content"] and "eval(" in report["content"]
+    sec = roles.scan_diff(ctx, f"{wf['data']['reproduce']['commit']}..HEAD")
+    assert {f["rule"] for f in sec["findings"]} >= {"tests-modified", "dangerous-call"}
 
 
 def test_concurrent_workers_do_not_double_process(orch):

@@ -169,18 +169,28 @@ def generate_candidates(file: str, source: str, ranges: list[tuple[int, int]],
 
 def search(read: Callable[[str], str], write: Callable[[str, str], None], target_files: list[str],
            identifiers: set[str], tier: int, evaluate: Callable[[Candidate], dict],
-           check_stop: Callable[[], None], max_evals: int) -> RepairResult:
-    """Try candidates in order; leave the first fully validated one applied, restore all others."""
+           check_stop: Callable[[], None], max_evals: int,
+           priority_lines: dict[str, list[int]] | None = None,
+           skip: Callable[[Candidate], bool] | None = None) -> RepairResult:
+    """Try candidates in order; leave the first fully validated one applied, restore all others.
+
+    priority_lines: lines named in review feedback are mutated first.
+    skip: predicate for candidates that must not be evaluated (e.g. a previously rejected solution).
+    """
     spec = TIERS[min(tier, max(TIERS))]
     result = RepairResult(found=False, tier=tier, localisation={
         "scope": spec["scope"], "operators": spec["ops"], "identifiers": sorted(identifiers),
-        "files": target_files})
+        "files": target_files, "skipped_rejected": 0})
     for file in target_files:
         original = read(file)
         ranges = line_ranges(original, identifiers, spec["scope"])
+        ranges = [(ln, ln) for ln in (priority_lines or {}).get(file, [])] + ranges
         result.localisation.setdefault("ranges", {})[file] = ranges
         for cand in generate_candidates(file, original, ranges, spec["ops"]):
             check_stop()
+            if skip is not None and skip(cand):
+                result.localisation["skipped_rejected"] += 1
+                continue
             if len(result.tried) >= max_evals:
                 result.localisation["budget_exhausted"] = True
                 return result

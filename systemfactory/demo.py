@@ -59,6 +59,18 @@ SAMPLES: dict[str, dict] = {
             "[0, 1, 2]\n"
             "```\n"),
     },
+    "bulk": {
+        "label": "Bug: bulk discount at exactly 10 units (fails review in iteration 1, corrected in iteration 2)",
+        "title": "Bulk discount not applied when ordering exactly 10 units",
+        "body": (
+            "The README and docstring promise 5% off for 10 or more units, but an order of exactly 10 units "
+            "gets no discount. This is wrong.\n\n"
+            "```python\n"
+            ">>> from shopcart.cart import bulk_discount_percent\n"
+            ">>> bulk_discount_percent(10)\n"
+            "5.0\n"
+            "```\n"),
+    },
     "coupon": {
         "label": "Bug: lowercase coupon codes (beyond simulated agent; exhausts retries)",
         "title": "Coupon codes rejected when typed in lowercase",

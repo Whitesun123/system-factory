@@ -12,7 +12,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
 
-from .statemachine import STEP, WF, check_transition
+from .statemachine import IT, ITERATION_OPEN, STEP, WF, check_iteration_transition, check_transition
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS issues (
@@ -98,12 +98,50 @@ CREATE TABLE IF NOT EXISTS approvals (
     comment TEXT NOT NULL DEFAULT '',
     ts REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS iterations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    workflow_id INTEGER NOT NULL REFERENCES workflows(id),
+    n INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    base TEXT,
+    "commit" TEXT,
+    fingerprint TEXT,
+    patch TEXT NOT NULL DEFAULT '{}',
+    tests TEXT NOT NULL DEFAULT '{}',
+    feedback TEXT NOT NULL DEFAULT '{}',
+    failure_signature TEXT,
+    blocking_count INTEGER,
+    decision TEXT,
+    decision_reason TEXT,
+    started_at REAL NOT NULL,
+    finished_at REAL,
+    UNIQUE(workflow_id, n)
+);
+CREATE TABLE IF NOT EXISTS reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    workflow_id INTEGER NOT NULL REFERENCES workflows(id),
+    iteration INTEGER NOT NULL,
+    reviewer TEXT NOT NULL,
+    adapter TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    simulated INTEGER NOT NULL,
+    verdict TEXT NOT NULL,
+    summary TEXT NOT NULL DEFAULT '',
+    findings TEXT NOT NULL DEFAULT '[]',
+    input_tokens INTEGER NOT NULL DEFAULT 0,
+    output_tokens INTEGER NOT NULL DEFAULT 0,
+    cost_usd REAL NOT NULL DEFAULT 0,
+    seconds REAL NOT NULL DEFAULT 0,
+    error TEXT,
+    created_at REAL NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_events_wf ON events(workflow_id, id);
 CREATE INDEX IF NOT EXISTS idx_steps_wf ON steps(workflow_id, seq);
 CREATE INDEX IF NOT EXISTS idx_wf_state ON workflows(state);
 """
 
-JSON_COLUMNS = {"options", "budget", "usage", "data", "output", "detail"}
+JSON_COLUMNS = {"options", "budget", "usage", "data", "output", "detail", "patch", "tests", "feedback", "findings"}
 
 
 def _now() -> float:
@@ -126,6 +164,10 @@ class Store:
         with self._conn() as c:
             c.execute("PRAGMA journal_mode=WAL")
             c.executescript(SCHEMA)
+            # migrations for databases created by earlier versions
+            cols = {r["name"] for r in c.execute("PRAGMA table_info(attempts)")}
+            if "iteration" not in cols:
+                c.execute("ALTER TABLE attempts ADD COLUMN iteration INTEGER")
 
     @contextmanager
     def _conn(self) -> Iterator[sqlite3.Connection]:
@@ -317,11 +359,11 @@ class Store:
         with self.tx() as c:
             c.execute(f"UPDATE steps SET {cols} WHERE id = ?", (*vals, step_id))
 
-    def start_attempt(self, wf_id: int, step_id: int, n: int) -> int:
+    def start_attempt(self, wf_id: int, step_id: int, n: int, iteration: int | None = None) -> int:
         with self.tx() as c:
             c.execute("UPDATE steps SET attempts = ? WHERE id = ?", (n, step_id))
-            return c.execute("INSERT INTO attempts(step_id, workflow_id, n, status, started_at) VALUES (?,?,?,?,?)",
-                             (step_id, wf_id, n, "running", _now())).lastrowid
+            return c.execute("INSERT INTO attempts(step_id, workflow_id, n, status, started_at, iteration)"
+                             " VALUES (?,?,?,?,?,?)", (step_id, wf_id, n, "running", _now(), iteration)).lastrowid
 
     def finish_attempt(self, attempt_id: int, status: str, error: str | None = None,
                        detail: dict | None = None) -> None:
@@ -334,6 +376,77 @@ class Store:
             rows = c.execute("SELECT a.*, s.name AS step FROM attempts a JOIN steps s ON s.id = a.step_id"
                              " WHERE a.workflow_id = ? ORDER BY a.id", (wf_id,)).fetchall()
         return [_row(r) for r in rows]
+
+    # ---------------------------------------------------------------- implementation-loop iterations
+    def open_iteration(self, wf_id: int) -> dict:
+        """Return the open iteration, or start iteration n+1 in phase CODING."""
+        with self.tx() as c:
+            row = c.execute("SELECT * FROM iterations WHERE workflow_id = ? ORDER BY n DESC LIMIT 1",
+                            (wf_id,)).fetchone()
+            if row is not None and row["status"] in ITERATION_OPEN:
+                return _row(row)
+            n = (row["n"] if row else 0) + 1
+            c.execute("INSERT INTO iterations(workflow_id, n, status, started_at) VALUES (?,?,?,?)",
+                      (wf_id, n, IT.CODING, _now()))
+            self._event(c, wf_id, "info", "coding", "orchestrator", f"Iteration {n} started",
+                        {"iteration": n})
+            return _row(c.execute("SELECT * FROM iterations WHERE workflow_id = ? AND n = ?", (wf_id, n)).fetchone())
+
+    def current_iteration(self, wf_id: int) -> dict | None:
+        with self._conn() as c:
+            return _row(c.execute("SELECT * FROM iterations WHERE workflow_id = ? ORDER BY n DESC LIMIT 1",
+                                  (wf_id,)).fetchone())
+
+    def get_iterations(self, wf_id: int) -> list[dict]:
+        with self._conn() as c:
+            rows = c.execute("SELECT * FROM iterations WHERE workflow_id = ? ORDER BY n", (wf_id,)).fetchall()
+        return [_row(r) for r in rows]
+
+    def update_iteration(self, wf_id: int, n: int, *, status: str | None = None, **fields: Any) -> None:
+        """Update an iteration; a status change is validated against ITERATION_TRANSITIONS."""
+        with self.tx() as c:
+            row = c.execute("SELECT status FROM iterations WHERE workflow_id = ? AND n = ?", (wf_id, n)).fetchone()
+            if row is None:
+                raise KeyError(f"iteration {n} of workflow {wf_id} not found")
+            if status is not None and status != row["status"]:
+                check_iteration_transition(row["status"], status)
+                fields["status"] = status
+                if status not in ITERATION_OPEN:
+                    fields.setdefault("finished_at", _now())
+                self._event(c, wf_id, "info", None, "orchestrator",
+                            f"Iteration {n}: {row['status']} -> {status}", {"iteration": n, "to": status})
+            if not fields:
+                return
+            cols = ", ".join(f'"{k}" = ?' for k in fields)
+            vals = [json.dumps(v) if k in JSON_COLUMNS else v for k, v in fields.items()]
+            c.execute(f"UPDATE iterations SET {cols} WHERE workflow_id = ? AND n = ?", (*vals, wf_id, n))
+
+    def close_open_iteration(self, wf_id: int, status: str, reason: str) -> None:
+        it = self.current_iteration(wf_id)
+        if it and it["status"] in ITERATION_OPEN:
+            self.update_iteration(wf_id, it["n"], status=status, decision=status, decision_reason=reason)
+
+    def add_review(self, wf_id: int, iteration: int, review: dict) -> None:
+        with self._conn() as c:
+            c.execute("INSERT INTO reviews(workflow_id, iteration, reviewer, adapter, provider, model, simulated,"
+                      " verdict, summary, findings, input_tokens, output_tokens, cost_usd, seconds, error, created_at)"
+                      " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                      (wf_id, iteration, review["reviewer"], review["adapter"], review["provider"], review["model"],
+                       int(review["simulated"]), review["verdict"], review.get("summary", ""),
+                       json.dumps(review.get("findings", [])), review.get("input_tokens", 0),
+                       review.get("output_tokens", 0), review.get("cost_usd", 0.0), review.get("seconds", 0.0),
+                       review.get("error"), _now()))
+
+    def get_reviews(self, wf_id: int, iteration: int | None = None) -> list[dict]:
+        q, args = "SELECT * FROM reviews WHERE workflow_id = ?", [wf_id]
+        if iteration is not None:
+            q, args = q + " AND iteration = ?", args + [iteration]
+        with self._conn() as c:
+            rows = c.execute(q + " ORDER BY id", args).fetchall()
+        out = [_row(r) for r in rows]
+        for r in out:
+            r["simulated"] = bool(r["simulated"])
+        return out
 
     # ---------------------------------------------------------------- audit log / evidence / approvals
     @staticmethod

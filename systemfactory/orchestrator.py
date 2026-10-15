@@ -18,7 +18,7 @@ from .config import Settings
 from .context import BlockedError, PermanentError, StepContext, TransientError
 from .roles import ROLES
 from .sandbox import Cancelled, Git, StepTimeout
-from .statemachine import PIPELINES, STEP, TERMINAL, WF, IllegalTransition
+from .statemachine import IT, ITERATION_OPEN, LOOP_STEPS, PIPELINES, STEP, TERMINAL, WF, IllegalTransition
 from .store import Store
 
 
@@ -84,6 +84,31 @@ class Orchestrator:
                 kind = self.store.get_workflow(wf_id)["kind"]
                 self.store.add_steps(wf_id, PIPELINES[kind][1:])
                 self.store.log(wf_id, f"Pipeline for {kind}: " + " -> ".join(n for n, _ in PIPELINES[kind]))
+            if step["name"] == "feedback":
+                decision = self.store.get_step(wf_id, "feedback")["output"].get("decision")
+                if decision == "revise":
+                    self._loop_back(wf_id)
+
+    def _loop_back(self, wf_id: int) -> None:
+        """Re-arm the implementation-loop steps so the next iteration starts at coding."""
+        it = self.store.current_iteration(wf_id)
+        for s in self.store.get_steps(wf_id):
+            if s["name"] in LOOP_STEPS:
+                self.store.update_step(s["id"], status=STEP.PENDING, attempts=0, error=None,
+                                       started_at=None, finished_at=None)
+        items = len((it.get("feedback") or {}).get("items", []))
+        self.store.log(wf_id, f"Revision requested: iteration {it['n']} -> {it['n'] + 1}; {items} feedback item(s) "
+                              f"passed to the coding agent", step="feedback")
+
+    def _attempt_iteration(self, wf_id: int, name: str) -> int | None:
+        if name not in LOOP_STEPS:
+            return None
+        it = self.store.current_iteration(wf_id)
+        if it and it["status"] in ITERATION_OPEN:
+            return it["n"]
+        if name == "coding":
+            return (it["n"] + 1) if it else 1
+        return it["n"] if it else None
 
     def _run_step(self, wf: dict, step: dict) -> str:
         wf_id, name, role = wf["id"], step["name"], step["role"]
@@ -95,7 +120,7 @@ class Orchestrator:
         self.store.log(wf_id, f"Step '{name}' started (role: {role}, up to {max_attempts} attempts)", step=name)
         last_error = ""
         for n in range(first, first + max_attempts):
-            att = self.store.start_attempt(wf_id, step["id"], n)
+            att = self.store.start_attempt(wf_id, step["id"], n, self._attempt_iteration(wf_id, name))
             t0 = time.time()
             ctx = StepContext(self.settings, self.store, self.git, wf_id, name, role, attempt=n,
                               deadline=t0 + self.settings.timeout_for(name))
@@ -123,6 +148,7 @@ class Orchestrator:
             except BlockedError as e:
                 self.store.finish_attempt(att, "blocked", str(e), {"seconds": time.time() - t0})
                 self.store.update_step(step["id"], status=STEP.BLOCKED, error=str(e), finished_at=time.time())
+                self._close_iteration(wf_id, IT.EXHAUSTED if "budget" in str(e).lower() else IT.STALLED, str(e))
                 self.store.transition(wf_id, WF.BLOCKED, reason=str(e), error=str(e), lease_owner=None)
                 return STEP.BLOCKED
             except Exception as e:  # PermanentError, GitError, PermissionError, unexpected
@@ -132,6 +158,7 @@ class Orchestrator:
                 self.store.log(wf_id, f"Attempt {n} failed ({kind}): {e}", level="error", step=name,
                                data={"traceback": traceback.format_exc()[-3000:]})
                 self.store.update_step(step["id"], status=STEP.FAILED, error=str(e), finished_at=time.time())
+                self._close_iteration(wf_id, IT.FAILED, str(e))
                 self.store.transition(wf_id, WF.FAILED, reason=f"{name}: {e}", error=str(e), lease_owner=None)
                 return STEP.FAILED
             else:
@@ -142,6 +169,7 @@ class Orchestrator:
                 return STEP.SUCCEEDED
         msg = f"{name}: retries exhausted after {max_attempts} attempts; last error: {last_error}"
         self.store.update_step(step["id"], status=STEP.FAILED, error=msg, finished_at=time.time())
+        self._close_iteration(wf_id, IT.FAILED, msg)
         self.store.transition(wf_id, WF.FAILED, reason=msg, error=msg, lease_owner=None)
         return STEP.FAILED
 
@@ -154,7 +182,15 @@ class Orchestrator:
             time.sleep(0.05)
         return True
 
+    def _close_iteration(self, wf_id: int, status: str, reason: str) -> None:
+        """Close the open loop iteration (if any) so its history shows how it ended."""
+        try:
+            self.store.close_open_iteration(wf_id, status, reason)
+        except IllegalTransition:
+            self.store.close_open_iteration(wf_id, IT.FAILED, reason)
+
     def _finish_cancel(self, wf_id: int, actor: str = "orchestrator") -> str:
+        self._close_iteration(wf_id, IT.CANCELLED, "cancelled by request")
         for s in self.store.get_steps(wf_id):
             if s["status"] in (STEP.PENDING, STEP.RUNNING, STEP.WAITING):
                 self.store.update_step(s["id"], status=STEP.CANCELLED, finished_at=time.time())
@@ -187,6 +223,9 @@ class Orchestrator:
         wf = self._get(wf_id)
         if wf["state"] != WF.AWAITING_APPROVAL:
             raise IllegalTransition(f"workflow {wf_id} is {wf['state']}, not awaiting approval")
+        if (decision == "approved" and wf["kind"] in ("bug", "feature")
+                and wf["data"].get("quality_gate", {}).get("status") != "SUCCESS"):
+            raise IllegalTransition(f"workflow {wf_id} has not passed the quality gate; it cannot be approved")
         self.store.record_approval(wf_id, decision, actor.strip(), comment)
         step = self.store.get_step(wf_id, "approval")
         self.store.update_step(step["id"], status=STEP.SUCCEEDED, finished_at=time.time(),
@@ -201,9 +240,24 @@ class Orchestrator:
         wf = self._get(wf_id)
         if wf["state"] not in (WF.FAILED, WF.BLOCKED):
             raise IllegalTransition(f"only failed or blocked workflows can be retried (state: {wf['state']})")
-        for s in self.store.get_steps(wf_id):
-            if s["status"] in (STEP.FAILED, STEP.BLOCKED):
-                self.store.update_step(s["id"], status=STEP.PENDING, error=None)
+        steps = self.store.get_steps(wf_id)
+        stuck = {s["name"] for s in steps if s["status"] in (STEP.FAILED, STEP.BLOCKED)}
+        if stuck & set(LOOP_STEPS) and self.store.current_iteration(wf_id):
+            # a stalled/exhausted loop restarts at coding with one more iteration of budget
+            for s in steps:
+                if s["name"] in LOOP_STEPS:
+                    self.store.update_step(s["id"], status=STEP.PENDING, attempts=0, error=None)
+            budget = wf["budget"]
+            done = len(self.store.get_iterations(wf_id))
+            if done >= budget.get("max_iterations", 4):
+                budget["max_iterations"] = done + 1
+                self.store.update_workflow(wf_id, budget=budget)
+            self.store.log(wf_id, f"Human retry: implementation loop restarts at coding (iteration {done + 1}, "
+                                  f"max_iterations={budget.get('max_iterations')})", actor=f"human:{actor}")
+        else:
+            for s in steps:
+                if s["status"] in (STEP.FAILED, STEP.BLOCKED):
+                    self.store.update_step(s["id"], status=STEP.PENDING, error=None)
         self.store.update_workflow(wf_id, error=None, cancel_requested=0)
         self.store.transition(wf_id, WF.QUEUED, actor=f"human:{actor}", reason="manual retry")
 

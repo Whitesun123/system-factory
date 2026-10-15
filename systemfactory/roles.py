@@ -6,14 +6,17 @@ same signatures and the same permission policies.
 """
 from __future__ import annotations
 
+import copy
 import doctest
 import re
 import time
 from pathlib import Path
 
-from . import repair
+from . import loop, repair
+from . import reviewers as reviewers_mod
 from .context import BlockedError, PermanentError, StepContext, TransientError
 from .sandbox import GIT_LOCK, Workspace
+from .statemachine import IT
 
 # Declared permissions per role; shown on the dashboard and enforced by Workspace allow-lists.
 ROLE_POLICIES = {
@@ -22,10 +25,15 @@ ROLE_POLICIES = {
     "architecture": {"reads": ["issue", "prd", "repo file list"], "writes": [], "commands": []},
     "infra": {"reads": ["repo"], "writes": ["data/worktrees/wf-<id>"], "commands": ["git worktree"]},
     "qa": {"reads": ["worktree"], "writes": ["tests/test_issue_*.py"], "commands": ["python -m pytest", "git commit"]},
-    "coding": {"reads": ["worktree"], "writes": ["<plan.target_files only>"],
-               "commands": ["python <repro test>", "python -m pytest", "git commit"]},
-    "security": {"reads": ["diff"], "writes": [], "commands": ["git diff"]},
-    "review": {"reads": ["diff", "evidence"], "writes": [], "commands": ["git diff"]},
+    "coding": {"reads": ["worktree", "review feedback"], "writes": ["<plan.target_files only>"],
+               "commands": ["python <repro test>", "python <feedback probes>", "python -m pytest", "git commit"]},
+    "review-panel": {"reads": ["diff", "requirements", "test evidence", "previous iterations"], "writes": [],
+                     "commands": ["python <doc-example probes> (simulated-spec)", "LLM API (if configured)"]},
+    "aggregator": {"reads": ["reviews", "test evidence", "iteration history"], "writes": [],
+                   "commands": ["python <probe re-execution>"]},
+    "quality-gate": {"reads": ["worktree", "all iterations"], "writes": [],
+                     "commands": ["python -m pytest", "python <probes>", "git diff"]},
+    "review": {"reads": ["support answer"], "writes": [], "commands": []},
     "support": {"reads": ["repo docs"], "writes": [], "commands": []},
     "human": {"reads": ["everything"], "writes": ["approval decision"], "commands": []},
 }
@@ -261,99 +269,45 @@ def reproduce(ctx: StepContext) -> dict:
             "baseline": pytest_summary(baseline.output)}
 
 
-def coding(ctx: StepContext) -> dict:
-    wf = ctx.wf
-    if wf["kind"] != "bug":
-        raise BlockedError("The simulated coding runtime only performs search-based repair of bugs that have a "
-                           "failing reproduction test. Implementing a feature needs an LLM coding runtime, "
-                           "which is not configured. Handing off to a human developer.")
-    data = wf["data"]
-    checkpoint = data["reproduce"]["commit"]
-    reset_worktree(ctx, checkpoint)
-    targets = data["plan"]["target_files"]
-    test_rel = data["reproduce"]["test_path"]
-    identifiers, _ = repair.identifiers_in_example(extract_example(wf["issue_body"]) or "")
-    tier = min(ctx.attempt, max(repair.TIERS))
-    throttle = wf["options"].get("throttle_ms", 0) / 1000
-    ws = ctx.workspace(targets)  # the coding role may write ONLY the planned source files
-
-    def evaluate(cand: repair.Candidate) -> dict:
-        ctx.charge(candidate_evals=1)
-        if throttle:
-            end = time.time() + throttle
-            while time.time() < end:
-                ctx.check_stop()
-                time.sleep(0.02)
-        r = ctx.run_python(test_rel, timeout=20)
-        if not r.ok:
-            return {"accepted": False, "repro": "fail"}
-        s = ctx.run_pytest()
-        return {"accepted": s.ok, "repro": "pass", "suite": "pass" if s.ok else "fail"}
-
-    budget = wf["budget"].get("max_candidate_evals", 400) - wf["usage"].get("candidate_evals", 0)
-    ctx.log(f"Attempt {ctx.attempt}: repair tier {tier} ({repair.TIERS[tier]['scope']}, "
-            f"ops={repair.TIERS[tier]['ops']}) over {targets}")
-    result = repair.search(ws.read_text, ws.write_text, targets, identifiers, tier, evaluate,
-                           ctx.check_stop, max_evals=max(budget, 0))
-    table = "\n".join(f"{t['file']} {t['candidate']}: repro={t.get('repro')} suite={t.get('suite', '-')}"
-                      for t in result.tried) or "(no candidates generated)"
-    ctx.evidence("repair_search", f"Attempt {ctx.attempt}: tier {tier} search, {len(result.tried)} candidates",
-                 table, tier=tier, found=result.found, localisation=result.localisation)
-    if not result.found:
-        if result.localisation.get("budget_exhausted"):
-            raise PermanentError("budget exhausted: candidate evaluation budget used up")
-        raise TransientError(f"Tier {tier} search ({repair.TIERS[tier]['scope']}) evaluated "
-                             f"{len(result.tried)} candidates; none passed repro + suite")
-    cand = result.candidate
-    diff = ctx.git.out(ctx.worktree, "diff")
-    commit = commit_all(ctx, [cand.file], f"fix: {wf['issue_title']} (issue #{wf['issue_id']})\n\n"
-                        f"Simulated search-based repair, tier {tier}: {cand.file} {cand.description}.")
-    ctx.evidence("patch", "Proposed patch", diff, file=cand.file, mutation=cand.description)
-    ctx.log(f"Patch found: {cand.file} {cand.description}; committed {commit[:10]}")
-    return {"agent": "simulated search-based repair (deterministic, not an LLM)", "tier": tier,
-            "file": cand.file, "mutation": cand.description, "commit": commit,
-            "candidates_evaluated": len(result.tried)}
+# ------------------------------------------------------------------ implementation loop helpers
+def _targets_contents(ctx: StepContext, targets: list[str]) -> dict[str, str]:
+    ws = ctx.workspace([])
+    return {f: ws.read_text(f) for f in targets}
 
 
-def testing(ctx: StepContext) -> dict:
-    data = ctx.data
-    dirty = ctx.git.out(ctx.worktree, "status", "--porcelain")
-    if dirty:
-        raise PermanentError(f"worktree not clean after coding: {dirty}")
-    head = ctx.git.out(ctx.worktree, "rev-parse", "HEAD")
-    test_rel = data["reproduce"]["test_path"]
-    repro = ctx.run_pytest(test_rel)
-    ctx.evidence("test_run", "Reproduction test after fix (expected to PASS)", repro.output[-4000:],
-                 exit_code=repro.exit_code, summary=pytest_summary(repro.output), commit=head, expected="pass")
-    suite = ctx.run_pytest()
-    ctx.evidence("test_run", "Full regression suite after fix", suite.output[-4000:],
-                 exit_code=suite.exit_code, summary=pytest_summary(suite.output), commit=head)
-    out = {"commit": head, "repro_passed": repro.ok, "suite_passed": suite.ok,
-           "repro_summary": pytest_summary(repro.output), "suite_summary": pytest_summary(suite.output),
-           "base_failure": data["reproduce"]["base_failure"]}
-    if not (repro.ok and suite.ok):
-        raise PermanentError(f"verification failed: repro={repro.ok} suite={suite.ok}")
+def _previous_iterations(ctx: StepContext, n: int) -> list[dict]:
+    return [i for i in ctx.store.get_iterations(ctx.wf_id) if i["n"] < n]
+
+
+def accumulated_probes(history: list[dict]) -> list[str]:
+    """Every confirmed blocking probe from earlier feedback: a revision must keep all of them passing."""
+    seen, out = set(), []
+    for it in history:
+        for p in (it.get("feedback") or {}).get("probes", []):
+            if p not in seen:
+                seen.add(p)
+                out.append(p)
     return out
 
 
-SECRET_PATTERNS = [
-    (r"sk-ant-[A-Za-z0-9_-]{10,}", "Anthropic API key"), (r"AKIA[0-9A-Z]{16}", "AWS access key"),
-    (r"-----BEGIN [A-Z ]*PRIVATE KEY-----", "private key"),
-    (r"(?i)(password|passwd|secret|api_key|token)\s*=\s*['\"][^'\"]+['\"]", "hard-coded credential"),
-]
-DANGEROUS_CALLS = [r"\beval\(", r"\bexec\(", r"os\.system\(", r"\bsubprocess\b", r"__import__\(",
-                   r"pickle\.loads?\(", r"\bshutil\.rmtree\(", r"\brequests\.|urllib\.request|socket\."]
+def run_probe(ctx: StepContext, source: str, tag: str = "probe") -> tuple[bool, str]:
+    """Execute a doctest-format probe against the worktree in the sandbox."""
+    d = ctx.settings.data_dir / "probes" / f"wf-{ctx.wf_id}"
+    d.mkdir(parents=True, exist_ok=True)
+    path = d / f"{tag}-{loop.probe_id(source)}.txt"
+    path.write_text(source, encoding="utf-8")
+    res = ctx.run_python("-c", loop.PROBE_RUNNER, str(path), timeout=20)
+    return res.ok, res.output
 
 
-def security(ctx: StepContext) -> dict:
-    data = ctx.data
-    rng = f"{data['reproduce']['commit']}..HEAD"
+def scan_diff(ctx: StepContext, rng: str) -> dict:
+    """Deterministic scope/secret/dangerous-call scan of the fix diff (excludes the repro test commit)."""
     files = ctx.git.out(ctx.worktree, "diff", "--name-only", rng).splitlines()
     diff = ctx.git.out(ctx.worktree, "diff", rng)
     added = [ln[1:] for ln in diff.splitlines() if ln.startswith("+") and not ln.startswith("+++")]
     removed = [ln for ln in diff.splitlines() if ln.startswith("-") and not ln.startswith("---")]
     findings = []
-    targets = set(data["plan"]["target_files"])
+    targets = set(ctx.data["plan"]["target_files"])
     for f in files:
         if f.startswith("tests/"):
             findings.append({"severity": "high", "rule": "tests-modified", "detail": f"coding agent changed {f}"})
@@ -369,43 +323,357 @@ def security(ctx: StepContext) -> dict:
     if len(added) + len(removed) > 30:
         findings.append({"severity": "medium", "rule": "large-diff",
                          "detail": f"{len(added)}+/{len(removed)}- lines for an automated fix"})
-    passed = not any(f["severity"] == "high" for f in findings)
-    report = "\n".join(f"[{f['severity']}] {f['rule']}: {f['detail']}" for f in findings) or "No findings."
-    ctx.evidence("security", "Security scan of fix diff", report, passed=passed, files=files)
-    out = {"passed": passed, "findings": findings, "files_changed": files,
-           "lines_added": len(added), "lines_removed": len(removed),
-           "scanner": "static pattern + scope rules v1"}
-    if not passed:
-        raise PermanentError("security gate failed: " + "; ".join(f["detail"] for f in findings if f["severity"] == "high"))
+    return {"passed": not any(f["severity"] == "high" for f in findings), "findings": findings,
+            "files_changed": files, "lines_added": len(added), "lines_removed": len(removed),
+            "scanner": "static pattern + scope rules v1"}
+
+
+SECRET_PATTERNS = [
+    (r"sk-ant-[A-Za-z0-9_-]{10,}", "Anthropic API key"), (r"AKIA[0-9A-Z]{16}", "AWS access key"),
+    (r"-----BEGIN [A-Z ]*PRIVATE KEY-----", "private key"),
+    (r"(?i)(password|passwd|secret|api_key|token)\s*=\s*['\"][^'\"]+['\"]", "hard-coded credential"),
+]
+DANGEROUS_CALLS = [r"\beval\(", r"\bexec\(", r"os\.system\(", r"\bsubprocess\b", r"__import__\(",
+                   r"pickle\.loads?\(", r"\bshutil\.rmtree\(", r"\brequests\.|urllib\.request|socket\."]
+
+
+# ------------------------------------------------------------------ loop step 1: coding (revision-aware)
+def coding(ctx: StepContext) -> dict:
+    wf = ctx.wf
+    if wf["kind"] != "bug":
+        raise BlockedError("The simulated coding runtime only performs search-based repair of bugs that have a "
+                           "failing reproduction test. Implementing a feature needs an LLM coding runtime, "
+                           "which is not configured. Handing off to a human developer.")
+    it = ctx.store.open_iteration(ctx.wf_id)
+    n = it["n"]
+    data = wf["data"]
+    checkpoint = data["reproduce"]["commit"]
+    targets = data["plan"]["target_files"]
+    test_rel = data["reproduce"]["test_path"]
+    history = _previous_iterations(ctx, n)
+    prev = history[-1] if history else None
+    coder = wf["options"].get("coder", "simulated-repair")
+    stubborn = coder == "simulated-stubborn"   # labelled test double: ignores review feedback
+    fb = (prev or {}).get("feedback") or {}
+    if stubborn or not prev:
+        fb = {}
+    strategy = fb.get("strategy", "fresh") if prev and not stubborn else "fresh"
+    base = prev["commit"] if strategy == "build_on_previous" and prev and prev.get("commit") else checkpoint
+    reset_worktree(ctx, base)
+
+    probes = [] if stubborn else accumulated_probes(history)
+    rejected = set() if stubborn else {i["fingerprint"] for i in history if i.get("fingerprint")}
+    identifiers, _ = repair.identifiers_in_example(extract_example(wf["issue_body"]) or "")
+    for p in probes:
+        identifiers |= repair.identifiers_in_example(p)[0]
+    identifiers |= set(fb.get("focus", {}).get("functions", []))
+    priority = fb.get("focus", {}).get("lines", {})
+    tier = min(ctx.attempt, max(repair.TIERS))
+    throttle = wf["options"].get("throttle_ms", 0) / 1000
+    ws = ctx.workspace(targets)  # the coding role may write ONLY the planned source files
+    base_contents = _targets_contents(ctx, targets)
+    probe_file = None
+    if probes:
+        d = ctx.settings.data_dir / "probes" / f"wf-{ctx.wf_id}"
+        d.mkdir(parents=True, exist_ok=True)
+        probe_file = d / f"iteration-{n}-required.txt"
+        probe_file.write_text("\n".join(p.strip() + "\n" for p in probes), encoding="utf-8")
+
+    def candidate_fp(cand: repair.Candidate) -> str:
+        return loop.fingerprint({**base_contents, cand.file: cand.new_text})
+
+    def evaluate(cand: repair.Candidate) -> dict:
+        ctx.charge(candidate_evals=1)
+        if throttle:
+            end = time.time() + throttle
+            while time.time() < end:
+                ctx.check_stop()
+                time.sleep(0.02)
+        r = ctx.run_python(test_rel, timeout=20)
+        if not r.ok:
+            return {"accepted": False, "repro": "fail"}
+        if probe_file is not None:
+            pr = ctx.run_python("-c", loop.PROBE_RUNNER, str(probe_file), timeout=20)
+            if not pr.ok:
+                return {"accepted": False, "repro": "pass", "feedback_probes": "fail"}
+        s = ctx.run_pytest()
+        return {"accepted": s.ok, "repro": "pass", "feedback_probes": "pass" if probes else "-",
+                "suite": "pass" if s.ok else "fail"}
+
+    budget = wf["budget"].get("max_candidate_evals", 400) - wf["usage"].get("candidate_evals", 0)
+    mode = "fresh implementation" if not prev else (
+        "ignoring feedback (stubborn test double)" if stubborn else
+        f"revision of iteration {prev['n']} ({strategy}) with {len(fb.get('items', []))} feedback item(s), "
+        f"{len(probes)} required probe(s), {len(rejected)} rejected solution(s) excluded")
+    ctx.log(f"Iteration {n}, attempt {ctx.attempt}: {mode}; repair tier {tier} "
+            f"({repair.TIERS[tier]['scope']}, ops={repair.TIERS[tier]['ops']}) over {targets}")
+    result = repair.search(ws.read_text, ws.write_text, targets, identifiers, tier, evaluate, ctx.check_stop,
+                           max_evals=max(budget, 0), priority_lines=priority,
+                           skip=(lambda c: candidate_fp(c) in rejected) if rejected else None)
+    table = "\n".join(f"{t['file']} {t['candidate']}: repro={t.get('repro')} feedback={t.get('feedback_probes', '-')}"
+                      f" suite={t.get('suite', '-')}" for t in result.tried) or "(no candidates generated)"
+    ctx.evidence("repair_search", f"Iteration {n} attempt {ctx.attempt}: tier {tier} search, "
+                 f"{len(result.tried)} candidates", table, tier=tier, found=result.found, iteration=n,
+                 localisation=result.localisation)
+    if not result.found:
+        if result.localisation.get("budget_exhausted"):
+            raise PermanentError("budget exhausted: candidate evaluation budget used up")
+        msg = (f"Tier {tier} search ({repair.TIERS[tier]['scope']}) evaluated {len(result.tried)} candidates; "
+               f"none passed repro + suite" + (" + review probes" if probes else ""))
+        if tier >= max(repair.TIERS) and prev is not None:
+            reason = f"No progress: could not produce a revision that satisfies the review feedback. {msg}"
+            ctx.store.update_iteration(ctx.wf_id, n, status=IT.STALLED, decision="stalled", decision_reason=reason)
+            ctx.store.merge_data(ctx.wf_id, "escalation", {"iteration": n, "reason": reason,
+                                                          "open_feedback": fb.get("items", [])})
+            raise BlockedError(f"Escalated to a human after iteration {n}: {reason}")
+        raise TransientError(msg)
+    cand = result.candidate
+    commit = commit_all(ctx, [cand.file], f"fix: {wf['issue_title']} (issue #{wf['issue_id']}, iteration {n})\n\n"
+                        f"Simulated search-based repair, tier {tier}: {cand.file} {cand.description}."
+                        + (f"\nAddresses review feedback: {', '.join(i['id'] for i in fb.get('items', []))}."
+                           if fb else ""))
+    diff = ctx.git.out(ctx.worktree, "diff", f"{checkpoint}..HEAD", "--", *targets)
+    fp = loop.fingerprint(_targets_contents(ctx, targets))
+    patch = {"file": cand.file, "mutation": cand.description, "tier": tier, "coder": coder,
+             "strategy": strategy, "base": base, "addressed": [i["id"] for i in fb.get("items", [])],
+             "required_probes": len(probes), "candidates_evaluated": len(result.tried),
+             "skipped_rejected": result.localisation.get("skipped_rejected", 0)}
+    ctx.store.update_iteration(ctx.wf_id, n, base=base, commit=commit, fingerprint=fp, patch=patch)
+    ctx.evidence("patch", f"Iteration {n} patch (cumulative vs. repro commit)", diff, iteration=n,
+                 file=cand.file, mutation=cand.description, fingerprint=fp)
+    ctx.log(f"Iteration {n}: patch {cand.file} {cand.description}; committed {commit[:10]} (fingerprint {fp[:10]})")
+    return {"agent": f"{coder} (deterministic, not an LLM)", "iteration": n, **patch, "commit": commit,
+            "fingerprint": fp}
+
+
+# ------------------------------------------------------------------ loop step 2: deterministic tests
+def testing(ctx: StepContext) -> dict:
+    it = ctx.set_phase(IT.TESTING)
+    n = it["n"]
+    data = ctx.data
+    dirty = ctx.git.out(ctx.worktree, "status", "--porcelain")
+    if dirty:
+        raise PermanentError(f"worktree not clean after coding: {dirty}")
+    head = ctx.git.out(ctx.worktree, "rev-parse", "HEAD")
+    test_rel = data["reproduce"]["test_path"]
+    repro = ctx.run_pytest(test_rel)
+    ctx.evidence("test_run", f"Iteration {n}: reproduction test (expected to PASS)", repro.output[-4000:],
+                 exit_code=repro.exit_code, summary=pytest_summary(repro.output), commit=head, iteration=n)
+    suite = ctx.run_pytest()
+    ctx.evidence("test_run", f"Iteration {n}: full regression suite", suite.output[-4000:],
+                 exit_code=suite.exit_code, summary=pytest_summary(suite.output), commit=head, iteration=n)
+    probes = []
+    for src in accumulated_probes(_previous_iterations(ctx, n)):
+        ok, output = run_probe(ctx, src, tag=f"iteration-{n}")
+        probes.append({"id": loop.probe_id(src), "source": src, "passed": ok, "output": output[-1500:]})
+    if probes:
+        ctx.evidence("test_run", f"Iteration {n}: probes from earlier review feedback",
+                     "\n".join(f"{p['id']}: {'PASS' if p['passed'] else 'FAIL'}\n{p['source']}" for p in probes),
+                     iteration=n, passed=all(p["passed"] for p in probes))
+    sec = scan_diff(ctx, f"{data['reproduce']['commit']}..HEAD")
+    out = {"iteration": n, "commit": head, "repro_passed": repro.ok, "suite_passed": suite.ok,
+           "repro_summary": pytest_summary(repro.output), "suite_summary": pytest_summary(suite.output),
+           "repro_output": repro.output[-1500:], "suite_output": suite.output[-1500:],
+           "probes": probes, "probes_passed": all(p["passed"] for p in probes), "security": sec}
+    out["all_passed"] = repro.ok and suite.ok and out["probes_passed"] and sec["passed"]
+    ctx.store.update_iteration(ctx.wf_id, n, tests=out)
+    ctx.log(f"Iteration {n}: repro={'pass' if repro.ok else 'FAIL'} suite={'pass' if suite.ok else 'FAIL'} "
+            f"probes={sum(p['passed'] for p in probes)}/{len(probes)} security={'pass' if sec['passed'] else 'FAIL'}")
     return out
 
 
-def review(ctx: StepContext) -> dict:
+# ------------------------------------------------------------------ loop step 3: independent reviewers
+class _ReviewTools:
+    def __init__(self, ctx: StepContext, n: int):
+        self.ctx, self.n = ctx, n
+
+    def run_probe(self, source: str) -> tuple[bool, str]:
+        return run_probe(self.ctx, source, tag=f"review-{self.n}")
+
+
+def review_bundle(ctx: StepContext, it: dict) -> dict:
     wf = ctx.wf
     data = wf["data"]
-    if wf["kind"] == "support":
-        sup = data["support"]
-        checks = [{"check": "Answer drafted from repository documentation", "ok": bool(sup.get("answer"))},
-                  {"check": "Answer cites its source section", "ok": bool(sup.get("source"))},
-                  {"check": "Match confidence >= 0.3", "ok": sup.get("confidence", 0) >= 0.3}]
-    else:
-        sec, tst, cod = data["security"], data["testing"], data["coding"]
-        checks = [
-            {"check": "Bug reproduced: new test failed on base commit", "ok": bool(data["reproduce"]["base_failure"])},
-            {"check": "Reproduction test passes after fix", "ok": tst["repro_passed"]},
-            {"check": "Full regression suite passes", "ok": tst["suite_passed"]},
-            {"check": "Only planned source files changed", "ok": set(sec["files_changed"]) <= set(data["plan"]["target_files"])},
-            {"check": "No high-severity security findings", "ok": sec["passed"]},
-            {"check": "Diff is small (<= 10 changed lines)", "ok": sec["lines_added"] + sec["lines_removed"] <= 10},
-        ]
-        full = ctx.git.out(ctx.worktree, "diff", f"{wf['base_commit']}..HEAD")
-        ctx.evidence("diff", f"Full diff {wf['base_commit'][:10]}..{tst['commit'][:10]} (test + fix)", full)
-        checks.append({"check": f"Patch: {cod['file']} {cod['mutation']}", "ok": True})
+    checkpoint = data["reproduce"]["commit"]
+    targets = data["plan"]["target_files"]
+    changed = ctx.git.out(ctx.worktree, "diff", "--name-only", f"{checkpoint}..HEAD").splitlines()
+    return {
+        "iteration": it["n"],
+        "issue": {"title": wf["issue_title"], "body": wf["issue_body"]},
+        "prd": data.get("requirements", {}), "plan": data.get("plan", {}),
+        "diff": ctx.git.out(ctx.worktree, "diff", f"{checkpoint}..HEAD", "--", *targets),
+        "diff_u0": ctx.git.out(ctx.worktree, "diff", "-U0", f"{checkpoint}..HEAD", "--", *targets),
+        "changed_files": changed,
+        "files_after": {f: ctx.workspace([]).read_text(f) for f in changed if f in targets},
+        "tests": it["tests"], "fingerprint": it["fingerprint"], "patch": it["patch"],
+        "previous_iterations": [
+            {"n": p["n"], "decision": p["decision"], "reason": p["decision_reason"], "fingerprint": p["fingerprint"],
+             "feedback": [{"id": i["id"], "severity": i["severity"], "title": i["title"], "location": i["location"]}
+                          for i in (p.get("feedback") or {}).get("items", [])]}
+            for p in _previous_iterations(ctx, it["n"])],
+    }
+
+
+def review_panel(ctx: StepContext) -> dict:
+    it = ctx.set_phase(IT.REVIEWING)
+    n = it["n"]
+    wf = ctx.wf
+    names = wf["options"].get("reviewers") or ctx.settings.reviewers
+    adapters, notes = reviewers_mod.resolve(names, ctx.settings.min_reviewers)
+    for note in notes:
+        ctx.log(note, level="warning")
+    bundle = review_bundle(ctx, it)
+    tools = _ReviewTools(ctx, n)
+    results = []
+    for adapter in adapters:
+        ctx.check_stop()
+        if not adapter.simulated:
+            usage, budget = ctx.wf["usage"], ctx.wf["budget"]
+            if usage.get("cost_usd", 0) >= budget.get("max_cost_usd", float("inf")):
+                ctx.store.update_iteration(ctx.wf_id, n, status=IT.EXHAUSTED, decision="exhausted",
+                                           decision_reason="cost budget exhausted before review")
+                raise BlockedError(f"Escalated: cost budget ${budget['max_cost_usd']:.2f} exhausted before "
+                                   f"reviewer '{adapter.name}' could run")
+        t0 = time.time()
+        rec = {"reviewer": adapter.name, "adapter": adapter.name, "provider": adapter.provider,
+               "model": adapter.model, "simulated": adapter.simulated, "technique": adapter.technique}
+        try:
+            # deep copy: reviewers cannot see or influence each other's input or output
+            res = adapter.review(copy.deepcopy(bundle), tools)
+            rec.update(verdict=res["verdict"], summary=res.get("summary", ""), findings=res.get("findings", []),
+                       input_tokens=res.get("input_tokens", 0), output_tokens=res.get("output_tokens", 0),
+                       cost_usd=res.get("cost_usd", 0.0), model=res.get("model", adapter.model))
+        except Exception as e:  # a reviewer failure is recorded, never silently treated as approval
+            rec.update(verdict="error", error=f"{type(e).__name__}: {e}", findings=[])
+        rec["seconds"] = round(time.time() - t0, 3)
+        ctx.store.add_review(ctx.wf_id, n, rec)
+        results.append(rec)
+        label = "SIMULATED" if rec["simulated"] else "REAL MODEL"
+        body = (f"{rec['provider']} / {rec['model']} ({label}) — technique: {adapter.technique}\n"
+                f"verdict: {rec['verdict']}\n{rec.get('summary') or rec.get('error', '')}\n\n" +
+                "\n".join(f"[{f.get('severity')}] {f.get('title')}\n    {f.get('detail', '')}" for f in rec["findings"]))
+        ctx.evidence("review", f"Iteration {n}: reviewer {adapter.name} — {rec['verdict']}", body,
+                     iteration=n, verdict=rec["verdict"], simulated=rec["simulated"])
+        if rec.get("input_tokens") or rec.get("cost_usd"):
+            ctx.charge(llm_tokens=rec.get("input_tokens", 0) + rec.get("output_tokens", 0),
+                       cost_usd=rec.get("cost_usd", 0.0))
+    ok = [r for r in results if r["verdict"] != "error"]
+    if len(ok) < ctx.settings.min_reviewers:
+        raise TransientError(f"only {len(ok)} of {len(results)} reviewers completed; "
+                             f"{ctx.settings.min_reviewers} independent reviews are required")
+    div = reviewers_mod.diversity(results)
+    ctx.log(f"Iteration {n}: {len(ok)} independent reviews — " +
+            ", ".join(f"{r['reviewer']}={r['verdict']}" for r in results) + f". Diversity: {div['label']}")
+    return {"iteration": n, "reviews": results, "diversity": div}
+
+
+# ------------------------------------------------------------------ loop step 4: aggregation + decision
+def feedback(ctx: StepContext) -> dict:
+    it = ctx.set_phase(IT.AGGREGATING)
+    n = it["n"]
+    wf = ctx.wf
+    reviews = wf["data"]["review"]["reviews"]
+    agg = loop.aggregate(reviews, it["tests"], lambda src: run_probe(ctx, src, tag=f"confirm-{n}"))
+    history = _previous_iterations(ctx, n)
+    first = (history[0] if history else it)["started_at"]
+    decision, reason = loop.assess_progress(
+        history, {"n": n, "fingerprint": it["fingerprint"], "failure_signature": agg["signature"],
+                  "blocking_count": agg["blocking_count"]}, wf["budget"], wf["usage"], first)
+    status = {"pass": IT.PASSED, "revise": IT.REVISE, "stalled": IT.STALLED, "exhausted": IT.EXHAUSTED}[decision]
+    ctx.store.update_iteration(ctx.wf_id, n, status=status, feedback=agg, failure_signature=agg["signature"],
+                               blocking_count=agg["blocking_count"], decision=decision, decision_reason=reason)
+    ctx.evidence("feedback", f"Iteration {n}: aggregated feedback — {decision}",
+                 loop.render_feedback(n, agg, decision, reason), iteration=n, decision=decision,
+                 blocking=agg["blocking_count"])
+    ctx.log(f"Iteration {n} decision: {decision} — {reason}", level="info" if decision in ("pass", "revise") else "warning")
+    if decision in ("stalled", "exhausted"):
+        ctx.store.merge_data(ctx.wf_id, "escalation", {
+            "iteration": n, "decision": decision, "reason": reason,
+            "open_blocking": [{"id": i["id"], "title": i["title"], "location": i["location"]}
+                              for i in agg["items"] if i["severity"] == "blocking"],
+            "recommended_action": "Review the iteration history, then fix manually, give the agent more context, "
+                                  "or retry to grant one more iteration."})
+        raise BlockedError(f"Escalated to a human after iteration {n}: {reason}")
+    return {"iteration": n, "decision": decision, "reason": reason, "blocking_count": agg["blocking_count"],
+            "items": len(agg["items"]), "strategy": agg["strategy"]}
+
+
+# ------------------------------------------------------------------ quality gate
+CRITERIA_CHECKS = [("fails on the base", "repro_fails_on_base"), ("passes after", "repro_passes"),
+                   ("suite still passes", "suite_passes"), ("source files named in the plan", "scope"),
+                   ("security", "security"), ("human approves", "human_approval")]
+
+
+def quality_gate(ctx: StepContext) -> dict:
+    """Independent re-verification of the final commit. SUCCESS only if every check passes."""
+    wf = ctx.wf
+    data = wf["data"]
+    head = ctx.git.out(ctx.worktree, "rev-parse", "HEAD")
+    test_rel = data["reproduce"]["test_path"]
+    its = ctx.store.get_iterations(ctx.wf_id)
+    final = its[-1]
+    final_reviews = [r for r in ctx.store.get_reviews(ctx.wf_id, final["n"]) if r["verdict"] != "error"]
+    repro = ctx.run_pytest(test_rel)
+    suite = ctx.run_pytest()
+    probes = accumulated_probes(its)
+    probe_results = [run_probe(ctx, p, tag="gate")[0] for p in probes]
+    sec = scan_diff(ctx, f"{data['reproduce']['commit']}..HEAD")
+    budget, usage = wf["budget"], wf["usage"]
+    checks = {
+        "repro_fails_on_base": (bool(data["reproduce"]["base_failure"]), "reproduction test failed on the base commit"),
+        "repro_passes": (repro.ok, f"reproduction test re-run on {head[:10]}: {pytest_summary(repro.output)}"),
+        "suite_passes": (suite.ok, f"full suite re-run: {pytest_summary(suite.output)}"),
+        "review_probes": (all(probe_results), f"{sum(probe_results)}/{len(probes)} probes from review feedback pass"),
+        "scope": (not any(f["rule"] in ("tests-modified", "out-of-scope") for f in sec["findings"]),
+                  f"changed files: {', '.join(sec['files_changed'])}"),
+        "security": (sec["passed"], f"{len(sec['findings'])} scanner finding(s), none high" if sec["passed"]
+                     else "; ".join(f["detail"] for f in sec["findings"])),
+        "loop_passed": (final["decision"] == "pass", f"final iteration {final['n']} decision: {final['decision']}"),
+        "no_blocking_findings": (final["blocking_count"] == 0,
+                                 f"{final['blocking_count']} unresolved blocking finding(s) after evidence confirmation"),
+        "independent_reviews": (len(final_reviews) >= ctx.settings.min_reviewers,
+                                f"{len(final_reviews)} independent reviews completed in the final iteration"),
+        "budget": (len(its) <= budget.get("max_iterations", 99) and usage.get("cost_usd", 0) <= budget.get("max_cost_usd", 1e9),
+                   f"{len(its)}/{budget.get('max_iterations')} iterations, ${usage.get('cost_usd', 0):.4f} of "
+                   f"${budget.get('max_cost_usd', 0):.2f}"),
+    }
+    criteria = []
+    for crit in data["requirements"].get("acceptance_criteria", []):
+        key = next((k for phrase, k in CRITERIA_CHECKS if phrase in crit.lower()), None)
+        if key == "human_approval":
+            criteria.append({"criterion": crit, "check": key, "ok": True, "note": "enforced by the approval gate"})
+        elif key:
+            criteria.append({"criterion": crit, "check": key, "ok": checks[key][0], "note": checks[key][1]})
+        else:
+            criteria.append({"criterion": crit, "check": None, "ok": False, "note": "no automated check maps to this"})
+    passed = all(ok for ok, _ in checks.values()) and all(c["ok"] for c in criteria)
+    status = "SUCCESS" if passed else "FAILED"
+    report = ["Checks:"] + [f"[{'PASS' if ok else 'FAIL'}] {k}: {note}" for k, (ok, note) in checks.items()]
+    report += ["", "Acceptance criteria:"] + [f"[{'PASS' if c['ok'] else 'FAIL'}] {c['criterion']} — {c['note']}"
+                                             for c in criteria]
+    report += ["", f"Quality gate: {status}. Final decision belongs to a human approver; nothing is merged."]
+    ctx.evidence("diff", f"Final diff {wf['base_commit'][:10]}..{head[:10]} (test + fix)",
+                 ctx.git.out(ctx.worktree, "diff", f"{wf['base_commit']}..HEAD"))
+    ctx.evidence("quality_gate", f"Quality gate — {status}", "\n".join(report), status=status)
+    out = {"status": status, "commit": head, "iterations": len(its),
+           "checks": {k: {"ok": ok, "note": note} for k, (ok, note) in checks.items()}, "criteria": criteria,
+           "diversity": reviewers_mod.diversity(final_reviews) if final_reviews else None}
+    if not passed:
+        failed = [k for k, (ok, _) in checks.items() if not ok] + [c["criterion"] for c in criteria if not c["ok"]]
+        raise PermanentError(f"quality gate failed: {', '.join(failed)}")
+    return out
+
+
+def answer_review(ctx: StepContext) -> dict:
+    """Checklist review of a drafted support answer (support pipeline)."""
+    sup = ctx.data["support"]
+    checks = [{"check": "Answer drafted from repository documentation", "ok": bool(sup.get("answer"))},
+              {"check": "Answer cites its source section", "ok": bool(sup.get("source"))},
+              {"check": "Match confidence >= 0.3", "ok": sup.get("confidence", 0) >= 0.3}]
     verdict = "recommend_approve" if all(c["ok"] for c in checks) else "changes_requested"
     report = "\n".join(f"[{'PASS' if c['ok'] else 'FAIL'}] {c['check']}" for c in checks)
-    report += f"\n\nVerdict: {verdict}. Final decision belongs to a human approver."
-    ctx.evidence("review", "Review checklist", report, verdict=verdict)
-    return {"verdict": verdict, "checks": checks, "reviewer": "rule-based review checklist v1"}
+    ctx.evidence("review", "Support answer checklist", report + f"\n\nVerdict: {verdict}.", verdict=verdict)
+    return {"verdict": verdict, "checks": checks, "reviewer": "rule-based checklist v1"}
 
 
 STOPWORDS = set("the a an and or to of in on for is are do does i my me how can with at it this that what "
@@ -442,6 +710,6 @@ def support(ctx: StepContext) -> dict:
 
 ROLES = {
     "triage": triage, "requirements": requirements, "plan": plan, "workspace": workspace,
-    "reproduce": reproduce, "coding": coding, "testing": testing, "security": security,
-    "review": review, "support": support,
+    "reproduce": reproduce, "coding": coding, "testing": testing, "review": review_panel,
+    "feedback": feedback, "quality_gate": quality_gate, "support": support, "answer_review": answer_review,
 }

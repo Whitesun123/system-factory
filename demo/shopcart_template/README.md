@@ -31,6 +31,10 @@ cart.total(discount_percent=coupon_discount("SAVE10"))
 
 Known coupon codes are `SAVE10` (10% off) and `HALF` (50% off). Unknown codes give no discount.
 
+## Bulk discounts
+
+`bulk_discount_percent(quantity)` gives 5% off for 10 or more units and 10% off for 50 or more units.
+
 ## Pagination
 
 `paginate(items, page, page_size)` returns the items on a 1-indexed page and

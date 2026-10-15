@@ -14,12 +14,22 @@ class Settings:
     data_dir: Path
     # Default per-workflow budget. Every unit here is something we actually count.
     default_budget: dict = field(default_factory=lambda: {
-        "max_wall_seconds": 600,
+        "max_wall_seconds": 900,
         "max_candidate_evals": 400,
-        "max_test_runs": 600,
+        "max_test_runs": 800,
+        # implementation loop (coding -> tests -> reviewers -> feedback -> revision)
+        "max_iterations": 4,
+        "max_loop_seconds": 600,
+        "max_llm_tokens": 200_000,
+        "max_cost_usd": 1.00,
+        "stall_window": 2,          # consecutive iterations without fewer blocking findings
     })
-    max_attempts: dict = field(default_factory=lambda: {"coding": 3, "default": 2})
-    step_timeout_seconds: dict = field(default_factory=lambda: {"coding": 240, "default": 120})
+    max_attempts: dict = field(default_factory=lambda: {"coding": 3, "review": 2, "default": 2})
+    step_timeout_seconds: dict = field(default_factory=lambda: {"coding": 240, "review": 300, "default": 120})
+    # Reviewer adapters, in order. Overridable per workflow (options.reviewers) or via SF_REVIEWERS.
+    reviewers: list = field(default_factory=lambda: [
+        r.strip() for r in os.environ.get("SF_REVIEWERS", "simulated-spec,simulated-diff").split(",") if r.strip()])
+    min_reviewers: int = 2
     command_timeout_seconds: int = 60
     concurrency: int = 2
 
@@ -65,13 +75,21 @@ def runtime_info() -> dict:
     """Report honestly which agent runtime is in use. No LLM is called unless explicitly configured."""
     api_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
     paid_ok = os.environ.get("SF_ALLOW_PAID_INFERENCE") == "1"
+    try:
+        import anthropic  # noqa: F401
+        sdk = True
+    except ImportError:
+        sdk = False
     return {
         "mode": "simulated",
-        "description": "Deterministic simulation: rule-based triage/PRD/plan/review and "
-                       "search-based program repair for coding. No LLM is called.",
+        "description": "Deterministic simulation: rule-based triage/PRD/plan, search-based program repair "
+                       "for coding, and two simulated reviewer adapters. No LLM is called by default.",
         "claude_api_key_present": api_key,
+        "anthropic_sdk_installed": sdk,
         "paid_inference_allowed": paid_ok,
         "claude_runtime_available": False,
-        "note": "A Claude API provider is not implemented yet; it requires an API key and "
-                "explicit budget approval (SF_ALLOW_PAID_INFERENCE=1).",
+        "claude_reviewer_available": api_key and paid_ok and sdk,
+        "note": "The coding agent has no LLM provider yet. A Claude reviewer adapter exists but is used only "
+                "when listed in SF_REVIEWERS and ANTHROPIC_API_KEY, the anthropic SDK and "
+                "SF_ALLOW_PAID_INFERENCE=1 are all present.",
     }

@@ -75,6 +75,22 @@ class StepContext:
         for key, limit_key in (("candidate_evals", "max_candidate_evals"), ("test_runs", "max_test_runs")):
             if limit_key in budget and usage.get(key, 0) > budget[limit_key]:
                 raise PermanentError(f"budget exhausted: {key}={usage[key]} > {budget[limit_key]}")
+        for key, limit_key in (("llm_tokens", "max_llm_tokens"), ("cost_usd", "max_cost_usd")):
+            if limit_key in budget and usage.get(key, 0) > budget[limit_key]:
+                raise BlockedError(f"LLM budget exhausted: {key}={usage[key]} > {budget[limit_key]}; "
+                                   "escalating to a human instead of spending more")
+
+    # ---- implementation loop
+    def iteration(self) -> dict:
+        it = self.store.current_iteration(self.wf_id)
+        if it is None:
+            raise PermanentError("no implementation-loop iteration is open")
+        return it
+
+    def set_phase(self, phase: str) -> dict:
+        it = self.iteration()
+        self.store.update_iteration(self.wf_id, it["n"], status=phase)
+        return self.store.current_iteration(self.wf_id)
 
     # ---- tools
     def workspace(self, writable: list[str]) -> Workspace:

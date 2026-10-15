@@ -12,17 +12,25 @@
 > makes the system testable and auditable, and it guarantees a human always gets the final say.
 >
 > **How we know a fix is real.** For a bug, the QA role turns the example from the issue into a test and
-> proves it **fails** on the current code. Only then does coding start, in an isolated git worktree. A fix
-> counts only if that test now **passes** and the whole existing suite still passes. Every run, diff and
-> decision is stored as evidence.
+> proves it **fails** on the current code. Then an implementation loop runs in an isolated git worktree:
+> code, run the tests, and have **at least two independent reviewers** check the actual diff against the
+> requirements and the test evidence. Their findings are merged into specific, evidence-backed feedback, and
+> each behavioural claim is re-executed as a probe so a made-up finding can't block the fix. The feedback goes back
+> to the coder for the next revision.
 >
-> **What's real today.** The orchestrator, state store, worktree isolation, retries, cancellation, security
-> gate, approvals and dashboard are real and covered by 22 tests. The coding agent is honestly a
-> *simulation*: a search-based repair engine, not an LLM, because no Claude API runtime is configured
-> yet. It fixes simple bugs. When it can't, it fails or hands off openly instead of faking it.
+> **How it stops.** The loop ends in one of two ways. Either there are no blocking findings, and an independent
+> quality gate re-verifies every acceptance criterion. Or it detects that it is stuck (the same patch again, the
+> same failures, or no progress) or hits its iteration, time or cost budget, and escalates to a human as
+> *blocked*. A human approval is always required, and approval never merges.
 >
-> **What's next.** Plug a Claude provider into the same role interface, run agents in containers, and move the
-> store to PostgreSQL.
+> **What's real today.** The orchestrator, the loop, stall detection, budgets, worktree isolation, the quality
+> gate and the dashboard are real and covered by 46 tests. The coder and both reviewers are honestly
+> *simulations*: deterministic techniques, not LLMs, because no model runtime is configured. The two reviewers are
+> independent by technique (one executes documented examples, one analyses the diff), not by model. Adapters for
+> Claude and for any other provider exist and switch on with keys and budget approval.
+>
+> **What's next.** A real coding provider that consumes the same feedback items, real multi-provider review,
+> containers, and PostgreSQL.
 
 ## How to explain any decision (the four-beat pattern)
 
@@ -54,7 +62,7 @@ We don't claim one. The brief's ~95% is a long-term goal. Right now we can show 
 1 support answer drafted. Measuring a real rate needs a real issue set and a real LLM runtime.
 
 **"What stops an agent from cheating, for example by editing the test?"**
-Three layers. The coding role's workspace can write only the planned source files. The security gate fails
+Three layers. The coding role's workspace can write only the planned source files. The scope scan, which runs every iteration and again in the quality gate, fails
 the workflow if any test file changed in the fix diff. And the reproduction test is committed *before*
 coding, so the review compares against it. There's a test that simulates a tampering agent and checks the
 gate rejects it.
@@ -72,3 +80,19 @@ under concurrent workers. Swapping it out is an implementation change, not a red
 Workers heartbeat. On restart, workflows with a stale lease go back to the queue, and their interrupted
 attempt is recorded as `interrupted`. Steps reset their worktree to the last checkpoint commit before
 rerunning.
+
+**"Isn't review too late? What if the first fix is wrong?"**
+That's what the loop is for. In the bulk-discount demo the first fix passes every test but fails review: a
+documented example of the same function is still wrong. The finding is confirmed by re-running it, both reviewers
+point at the same function, and the coder gets the exact failing call as a required probe. Iteration 2 fixes it.
+
+**"Are these really two different models?"**
+No, and the dashboard says so. Both are deterministic reviewers using different techniques. Each review row records
+provider, model and a `simulated` flag, and "multi-provider" is shown only when two non-simulated providers actually
+completed reviews. Claude runs through the official SDK, and any other provider plugs in via the command adapter.
+
+**"How do you stop it looping forever and burning money?"**
+Four stop rules: a repeated patch fingerprint, an identical failure signature, no decrease in blocking findings over
+two iterations, and hard budgets (iterations, loop time, tokens, dollars). Any of them sets the workflow to
+*blocked*, with an escalation record that says why and what is still open.
+

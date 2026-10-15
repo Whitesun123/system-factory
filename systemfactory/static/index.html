@@ -59,6 +59,21 @@ tr.wf:hover, tr.wf.sel { background: var(--bg); }
 .s-failed, .s-rejected { background: var(--bad-bg); color: var(--bad); }
 .s-blocked { background: var(--warn-bg); color: var(--warn); }
 .s-cancelled { background: var(--idle-bg); color: var(--idle); text-decoration: line-through; }
+.s-coding, .s-testing, .s-reviewing, .s-aggregating { background: var(--info-bg); color: var(--info); }
+.s-revise, .s-major, .s-request_changes { background: var(--warn-bg); color: var(--warn); }
+.s-passed, .s-approve, .s-SUCCESS { background: var(--ok-bg); color: var(--ok); }
+.s-stalled, .s-exhausted, .s-blocking, .s-error, .s-FAILED { background: var(--bad-bg); color: var(--bad); }
+.s-minor, .s-sim { background: var(--idle-bg); color: var(--idle); }
+.iter { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin: 10px 0; }
+.iter.open { border-color: var(--info); }
+.iter h3 { margin: 0; font-size: 14px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.iter .sec { margin-top: 10px; }
+.iter .sec > b { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+.rev { border-top: 1px dashed var(--line); padding: 6px 0; }
+.finding { margin: 4px 0 4px 10px; font-size: 13px; }
+.finding .d { color: var(--muted); font-size: 12px; margin-left: 4px; }
+.fb { background: var(--bg); border-radius: 8px; padding: 8px 10px; margin: 6px 0; }
+.arrow { text-align: center; color: var(--muted); font-size: 12px; margin: -4px 0; }
 .muted { color: var(--muted); }
 .small { font-size: 12px; }
 .pipeline { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
@@ -109,6 +124,7 @@ summary { cursor: pointer; font-weight: 600; font-size: 13px; }
       <label class="check"><input type="checkbox" id="fault"> Inject a transient fault in step
         <select id="faultStep" style="width:auto"><option>reproduce</option><option>coding</option><option>triage</option><option>testing</option></select></label>
       <label class="check"><input type="checkbox" id="throttle"> Slow down repair (200 ms/candidate) to demo cancellation</label>
+      <label class="check"><input type="checkbox" id="stubborn"> Use the stubborn coder test double (ignores review feedback) to demo stall detection</label>
       <div class="row"><button class="primary" id="submitSample">Submit</button></div>
     </div>
     <details class="card" style="padding:14px">
@@ -134,7 +150,7 @@ const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmtT = (ts) => ts ? new Date(ts * 1000).toLocaleTimeString() : "–";
 const dur = (a, b) => a ? (((b || Date.now() / 1000) - a)).toFixed(1) + "s" : "–";
-let selected = null, tab = "evidence", lastDetail = "", lastList = "", openDetails = new Set();
+let selected = null, tab = "iterations", lastDetail = "", lastList = "", openDetails = new Set();
 
 async function api(path, opts = {}) {
   const r = await fetch(path, { headers: { "Content-Type": "application/json" }, ...opts });
@@ -188,6 +204,45 @@ function evidenceBody(e) {
   return (meta ? `<div class="small muted">${meta}</div>` : "") + `<pre>${esc(e.content)}</pre>`;
 }
 
+function renderIterations(d) {
+  const open = ["coding","testing","reviewing","aggregating"];
+  return d.iterations.map((it, idx) => {
+    const p = it.patch || {}, t = it.tests || {}, fb = it.feedback || {};
+    const revs = d.reviews.filter(r => r.iteration === it.n);
+    const probes = t.probes || [];
+    const testsRow = Object.keys(t).length ? `
+      ${chip(t.repro_passed ? "passed" : "FAILED")} repro &nbsp; ${chip(t.suite_passed ? "passed" : "FAILED")} suite (${esc(t.suite_summary)}) &nbsp;
+      ${probes.length ? `${chip(t.probes_passed ? "passed" : "FAILED")} ${probes.filter(x => x.passed).length}/${probes.length} feedback probes &nbsp;` : ""}
+      ${chip(t.security?.passed ? "passed" : "FAILED")} scope/security` : `<span class="muted small">not run yet</span>`;
+    const reviewsHtml = revs.length ? revs.map(r => `<div class="rev">
+        <b>${esc(r.reviewer)}</b> <span class="small muted">${esc(r.provider)} / ${esc(r.model)}</span>
+        ${r.simulated ? `<span class="st s-sim">SIMULATED</span>` : `<span class="st s-passed">REAL MODEL</span>`}
+        ${chip(r.verdict)} <span class="small muted">${r.seconds}s${r.cost_usd ? ` · $${r.cost_usd.toFixed(4)} · ${r.input_tokens + r.output_tokens} tok` : ""}</span>
+        <div class="small muted">${esc(r.summary || r.error || "")}</div>
+        ${(r.findings || []).map(f => `<div class="finding">${chip(f.severity)} ${esc(f.title)}<span class="d">${esc(f.detail || "")}</span></div>`).join("")}
+      </div>`).join("") : `<span class="muted small">no reviews yet</span>`;
+    const fbHtml = (fb.items || []).length ? fb.items.map(i => `<div class="fb">
+        <b>${esc(i.id)}</b> ${chip(i.severity)} <code>${esc((i.location.file ? i.location.file + "::" : "") + i.location.where)}</code> — ${esc(i.title)}
+        <div class="small muted">sources: ${esc(i.sources.join(", "))}${i.corroborated ? " · <b>corroborated by independent reviewers</b>" : ""}</div>
+        ${i.findings.map(f => `<div class="finding small">${esc(f.reviewer)}: ${esc(f.title)} ${f.confirmed === true ? "<b>(confirmed by re-execution)</b>" : f.confirmed === false ? "<b>(unconfirmed → downgraded)</b>" : ""}<span class="d">${esc(f.detail || "")}</span></div>`).join("")}
+        ${i.suggestions.map(s => `<div class="small">→ ${esc(s)}</div>`).join("")}
+        ${i.probes.map(pr => `<pre>${esc(pr)}</pre>`).join("")}
+      </div>`).join("") : (it.decision ? `<span class="muted small">No findings.</span>` : `<span class="muted small">pending</span>`);
+    const card = `<div class="iter ${open.includes(it.status) ? "open" : ""}">
+      <h3>Iteration ${it.n} ${chip(it.status)} <span class="small muted">${p.mutation ? esc(p.file + " " + p.mutation) : "coding…"}</span></h3>
+      <div class="small muted">${p.coder ? `coder: ${esc(p.coder)} · strategy: ${esc(p.strategy)} · base ${esc((p.base || "").slice(0, 10))} · fingerprint ${esc((it.fingerprint || "").slice(0, 10))}` : ""}
+        ${p.addressed?.length ? ` · addresses ${esc(p.addressed.join(", "))} with ${p.required_probes} required probe(s)` : ""}${p.skipped_rejected ? ` · ${p.skipped_rejected} rejected solution(s) skipped` : ""}</div>
+      <div class="sec"><b>1 · Deterministic tests</b><div class="small" style="margin-top:4px">${testsRow}</div></div>
+      <div class="sec"><b>2 · Independent reviewers</b>${reviewsHtml}</div>
+      <div class="sec"><b>3 · Aggregated feedback</b>${fbHtml}</div>
+      ${it.decision ? `<div class="sec"><b>4 · Decision</b> ${chip(it.decision === "pass" ? "passed" : it.decision)} <span class="small">${esc(it.decision_reason || "")}</span>
+        ${fb.strategy && it.decision === "revise" ? `<div class="small muted">next revision: ${esc(fb.strategy)}</div>` : ""}</div>` : ""}
+    </div>`;
+    return card + (idx < d.iterations.length - 1 ? `<div class="arrow">▼ feedback sent to the coding agent</div>` : "");
+  }).join("") + (d.workflow.data.quality_gate ? `<div class="arrow">▼</div><div class="iter"><h3>Quality gate ${chip(d.workflow.data.quality_gate.status)}</h3>
+      ${d.workflow.data.quality_gate.criteria.map(c => `<div class="small">${c.ok ? "✔" : "✘"} ${esc(c.criterion)} <span class="muted">— ${esc(c.note)}</span></div>`).join("")}</div>` : "");
+}
+
 function renderDetail(d) {
   const w = d.workflow;
   const actions = [];
@@ -200,7 +255,15 @@ function renderDetail(d) {
   if (["queued","running","awaiting_approval","blocked","failed"].includes(w.state)) btns.push(`<button class="danger" id="cancel">${w.cancel_requested && w.state === "running" ? "Cancelling…" : "Cancel"}</button>`);
   if (["failed","blocked"].includes(w.state)) btns.push(`<button id="retry">Retry from failed step</button>`);
 
-  const banner = w.error ? `<div class="banner ${w.state === "blocked" ? "warn" : "bad"}"><b>${w.state === "blocked" ? "Blocked" : "Failed"}:</b> ${esc(w.error)}</div>`
+  const gate = w.data.quality_gate, escal = w.data.escalation, lastIt = d.iterations.at(-1);
+  const loopLine = d.iterations.length ? `<div class="row small">
+      <span>Review loop: iteration <b>${lastIt.n}</b> of max ${esc(w.budget.max_iterations)}</span> ${chip(lastIt.status)}
+      ${w.data.review ? `<span class="st ${w.data.review.diversity.real_provider_diversity ? "s-passed" : "s-sim"}">${esc(w.data.review.diversity.label)}</span>` : ""}
+      ${gate ? `<span>Quality gate</span> ${chip(gate.status)}` : ""}</div>` : "";
+  const escBanner = escal && w.state === "blocked" ? `<div class="banner bad"><b>Escalated to a human</b> after iteration ${escal.iteration}: ${esc(escal.reason)}
+      ${(escal.open_blocking || []).length ? `<br>Open blocking: ${escal.open_blocking.map(b => esc(b.id + " " + b.title)).join("; ")}` : ""}
+      <br><span class="small">${esc(escal.recommended_action || "")}</span></div>` : "";
+  const banner = escBanner ? escBanner : w.error ? `<div class="banner ${w.state === "blocked" ? "warn" : "bad"}"><b>${w.state === "blocked" ? "Blocked" : "Failed"}:</b> ${esc(w.error)}</div>`
     : w.state === "approved" ? `<div class="banner ok">Approved by ${esc(d.approvals.at(-1)?.actor)}. Branch <code>${esc(w.branch)}</code> is ready for a human to merge.</div>` : "";
 
   const steps = d.steps.map(s => {
@@ -218,7 +281,9 @@ function renderDetail(d) {
     ["Options", JSON.stringify(w.options)]].map(([k, v]) => `<div>${k}</div><div>${esc(v)}</div>`).join("");
 
   let body = "";
-  if (tab === "evidence") {
+  if (tab === "iterations") {
+    body = d.iterations.length ? renderIterations(d) : `<div class="empty">No coding/review iterations for this workflow${w.kind === "support" ? " (support work has no code loop)" : " yet"}.</div>`;
+  } else if (tab === "evidence") {
     body = d.evidence.length ? d.evidence.map(e => `<details data-ev="${e.id}" ${openDetails.has(String(e.id)) ? "open" : ""}>
       <summary>${esc(e.title)} <span class="small muted">· ${esc(e.step)} · ${esc(e.kind)} · ${fmtT(e.created_at)}</span></summary>${evidenceBody(e)}</details>`).join("")
       : `<div class="empty">No evidence yet.</div>`;
@@ -229,8 +294,8 @@ function renderDetail(d) {
     body = `<table class="log">${d.events.map(e => `<tr><td class="muted">${fmtT(e.ts)}</td><td class="lvl-${esc(e.level)}">${esc(e.level)}</td>
       <td class="muted">${esc(e.actor)}</td><td>${esc(e.message)}</td></tr>`).join("")}</table>`;
   } else if (tab === "attempts") {
-    body = `<table><thead><tr><th>Step</th><th>#</th><th>Status</th><th>Duration</th><th>Error</th></tr></thead>${d.attempts.map(a => `<tr>
-      <td>${esc(a.step)}</td><td>${a.n}</td><td>${chip(a.status === "running" ? "running" : a.status)}</td>
+    body = `<table><thead><tr><th>Iter</th><th>Step</th><th>#</th><th>Status</th><th>Duration</th><th>Error</th></tr></thead>${d.attempts.map(a => `<tr>
+      <td>${a.iteration ?? "–"}</td><td>${esc(a.step)}</td><td>${a.n}</td><td>${chip(a.status === "running" ? "running" : a.status)}</td>
       <td>${dur(a.started_at, a.finished_at)}</td><td class="small">${esc(a.error || "")}</td></tr>`).join("")}</table>`;
   } else if (tab === "data") {
     body = `<pre>${esc(JSON.stringify(w.data, null, 2))}</pre>`;
@@ -239,11 +304,12 @@ function renderDetail(d) {
   $("#detail").innerHTML = `
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><h2 style="margin:0;text-transform:none;letter-spacing:0;font-size:16px;color:var(--ink)">#${w.id} ${esc(w.issue_title)}</h2>${chip(w.state)}</div>
     ${banner}${actions.join("")}
+    ${loopLine}
     <div class="pipeline">${steps}</div>
     <div class="kv">${kv}</div>
     <div class="row">${btns.join("")}</div>
     <details style="margin-top:10px"><summary>Original issue</summary><pre style="white-space:pre-wrap">${esc(w.issue_body)}</pre></details>
-    <div class="tabs">${["evidence","diff","log","attempts","data"].map(t => `<button data-tab="${t}" class="${t === tab ? "on" : ""}">${t}</button>`).join("")}</div>
+    <div class="tabs">${["iterations","evidence","diff","log","attempts","data"].map(t => `<button data-tab="${t}" class="${t === tab ? "on" : ""}">${t}</button>`).join("")}</div>
     <div style="margin-top:10px">${body}</div>`;
 
   document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { tab = b.dataset.tab; lastDetail = ""; refreshDetail(); });
@@ -264,7 +330,8 @@ function renderDetail(d) {
 async function refreshDetail() {
   if (selected == null) return;
   const d = await api(`/api/workflows/${selected}`);
-  const sig = JSON.stringify([d.workflow.state, d.workflow.updated_at, d.events.length, d.evidence.length, d.attempts.map(a => a.status), tab]);
+  const sig = JSON.stringify([d.workflow.state, d.workflow.updated_at, d.events.length, d.evidence.length,
+    d.attempts.map(a => a.status), d.iterations.map(i => i.status), d.reviews.length, tab]);
   if (sig === lastDetail) return;
   const typing = document.activeElement && ["actor","comment"].includes(document.activeElement.id);
   if (typing) return;  // do not wipe the approval form while someone is typing
@@ -284,7 +351,8 @@ async function submit(path, payload) {
   } catch (e) { alert(e.message); }
 }
 $("#submitSample").onclick = () => submit(`/api/samples/${$("#sample").value}`, {
-  faults: $("#fault").checked ? { [$("#faultStep").value]: 1 } : {}, throttle_ms: $("#throttle").checked ? 200 : 0 });
+  faults: $("#fault").checked ? { [$("#faultStep").value]: 1 } : {}, throttle_ms: $("#throttle").checked ? 200 : 0,
+  coder: $("#stubborn").checked ? "simulated-stubborn" : "simulated-repair" });
 $("#submitCustom").onclick = () => submit("/api/issues", { title: $("#ctitle").value, body: $("#cbody").value });
 
 loadSamples(); refresh(); setInterval(refresh, 1500);

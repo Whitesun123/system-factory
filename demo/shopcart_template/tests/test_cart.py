@@ -1,6 +1,6 @@
 import pytest
 
-from shopcart.cart import Cart, coupon_discount
+from shopcart.cart import Cart, bulk_discount_percent, coupon_discount
 
 
 def test_subtotal_sums_line_items():
@@ -50,6 +50,12 @@ def test_total_rejects_invalid_discount():
     cart = Cart()
     with pytest.raises(ValueError):
         cart.total(discount_percent=150)
+
+
+def test_bulk_discount_tiers():
+    assert bulk_discount_percent(1) == 0.0
+    assert bulk_discount_percent(20) == 5.0
+    assert bulk_discount_percent(100) == 10.0
 
 
 def test_known_coupon():
