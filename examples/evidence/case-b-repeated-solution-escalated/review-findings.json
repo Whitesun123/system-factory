@@ -1,0 +1,139 @@
+[
+  {
+    "iteration": 1,
+    "reviewer": "simulated-spec",
+    "provider": "simulated",
+    "model": "spec-conformance-v1",
+    "model_digest": null,
+    "execution": "simulated",
+    "simulated": true,
+    "verdict": "request_changes",
+    "summary": "Checked 3 documented example(s) of modified functions; 1 finding(s).",
+    "analysis": "",
+    "findings": [
+      {
+        "severity": "blocking",
+        "rule": "documented-behaviour",
+        "file": "shopcart/cart.py",
+        "function": "bulk_discount_percent",
+        "line": 47,
+        "title": "Documented example fails for modified function `bulk_discount_percent`",
+        "detail": "`bulk_discount_percent(50)` is documented to return `10.0` but returns `5.0` after the patch.",
+        "evidence": "**********************************************************************\nFile \"probe\", line 2, in probe\nFailed example:\n    bulk_discount_percent(50)\nExpected:\n    10.0\nGot:\n    5.0\n\n",
+        "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n",
+        "suggestion": "Make `bulk_discount_percent` satisfy every documented example, not only the reported one."
+      }
+    ],
+    "checks_executed": [],
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "seconds": 0.996,
+    "error": null,
+    "llm_call_id": null
+  },
+  {
+    "iteration": 1,
+    "reviewer": "simulated-diff",
+    "provider": "simulated",
+    "model": "diff-heuristics-v1",
+    "model_digest": null,
+    "execution": "simulated",
+    "simulated": true,
+    "verdict": "approve",
+    "summary": "Reviewed 1 hunk(s), 2 changed line(s); 1 finding(s).",
+    "analysis": "",
+    "findings": [
+      {
+        "severity": "major",
+        "rule": "inconsistent-boundary",
+        "file": "shopcart/cart.py",
+        "function": "bulk_discount_percent",
+        "line": 57,
+        "title": "Same `>` boundary pattern left unchanged at line 57",
+        "detail": "The patch changed `>` to `>=` at line 59 but `if quantity > 50:` in the same function still uses `>`.",
+        "suggestion": "Check whether line 57 needs the same `>` -> `>=` change."
+      }
+    ],
+    "checks_executed": [],
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "seconds": 0.001,
+    "error": null,
+    "llm_call_id": null
+  },
+  {
+    "iteration": 2,
+    "reviewer": "simulated-spec",
+    "provider": "simulated",
+    "model": "spec-conformance-v1",
+    "model_digest": null,
+    "execution": "simulated",
+    "simulated": true,
+    "verdict": "request_changes",
+    "summary": "Checked 3 documented example(s) of modified functions; 1 finding(s).",
+    "analysis": "",
+    "findings": [
+      {
+        "severity": "blocking",
+        "rule": "documented-behaviour",
+        "file": "shopcart/cart.py",
+        "function": "bulk_discount_percent",
+        "line": 47,
+        "title": "Documented example fails for modified function `bulk_discount_percent`",
+        "detail": "`bulk_discount_percent(50)` is documented to return `10.0` but returns `5.0` after the patch.",
+        "evidence": "**********************************************************************\nFile \"probe\", line 2, in probe\nFailed example:\n    bulk_discount_percent(50)\nExpected:\n    10.0\nGot:\n    5.0\n\n",
+        "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n",
+        "suggestion": "Make `bulk_discount_percent` satisfy every documented example, not only the reported one."
+      }
+    ],
+    "checks_executed": [],
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "seconds": 1.009,
+    "error": null,
+    "llm_call_id": null
+  },
+  {
+    "iteration": 2,
+    "reviewer": "simulated-diff",
+    "provider": "simulated",
+    "model": "diff-heuristics-v1",
+    "model_digest": null,
+    "execution": "simulated",
+    "simulated": true,
+    "verdict": "request_changes",
+    "summary": "Reviewed 1 hunk(s), 2 changed line(s); 3 finding(s).",
+    "analysis": "",
+    "findings": [
+      {
+        "severity": "blocking",
+        "rule": "unresolved-feedback",
+        "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n",
+        "title": "Feedback from an earlier iteration is still unresolved (P-d828a288)",
+        "evidence": "**********************************************************************\nFile \"probe\", line 2, in probe\nFailed example:\n    bulk_discount_percent(50)\nExpected:\n    10.0\nGot:\n    5.0\n\n"
+      },
+      {
+        "severity": "blocking",
+        "rule": "repeated-solution",
+        "title": "Patch is identical to the one rejected in iteration 1",
+        "suggestion": "Address the earlier feedback instead of resubmitting."
+      },
+      {
+        "severity": "major",
+        "rule": "inconsistent-boundary",
+        "file": "shopcart/cart.py",
+        "function": "bulk_discount_percent",
+        "line": 57,
+        "title": "Same `>` boundary pattern left unchanged at line 57",
+        "detail": "The patch changed `>` to `>=` at line 59 but `if quantity > 50:` in the same function still uses `>`.",
+        "suggestion": "Check whether line 57 needs the same `>` -> `>=` change."
+      }
+    ],
+    "checks_executed": [],
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "seconds": 0.001,
+    "error": null,
+    "llm_call_id": null
+  }
+]

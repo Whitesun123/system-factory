@@ -1,0 +1,201 @@
+[
+  {
+    "n": 1,
+    "status": "revise",
+    "base": "c96930ffc6c020c7527498594976a66a12b476c1",
+    "commit": "0efcbda671bc2871897e92179d3ebad2d3aba186",
+    "fingerprint": "46f1a5a37cfcd72f",
+    "patch": {
+      "file": "shopcart/cart.py",
+      "mutation": "line 59: `>` -> `>=`",
+      "tier": 1,
+      "coder": "simulated-repair",
+      "strategy": "fresh",
+      "base": "c96930ffc6c020c7527498594976a66a12b476c1",
+      "addressed": [],
+      "required_probes": 0,
+      "candidates_evaluated": 2,
+      "skipped_rejected": 0
+    },
+    "decision": "revise",
+    "decision_reason": "Iteration 1: 1 blocking finding(s); sending feedback to the coding agent.",
+    "failure_signature": "068d6d75d031",
+    "blocking_count": 1,
+    "started_at": 1792087338.850167,
+    "finished_at": 1792087344.6631784,
+    "tests": {
+      "iteration": 1,
+      "commit": "0efcbda671bc2871897e92179d3ebad2d3aba186",
+      "repro_passed": true,
+      "suite_passed": true,
+      "repro_summary": "1 passed in 0.02s",
+      "suite_summary": "18 passed in 0.03s",
+      "probes": [],
+      "probes_passed": true,
+      "security": {
+        "passed": true,
+        "findings": [],
+        "files_changed": [
+          "shopcart/cart.py"
+        ],
+        "lines_added": 1,
+        "lines_removed": 1,
+        "scanner": "static pattern + scope rules v1"
+      },
+      "all_passed": true
+    },
+    "feedback": {
+      "items": [
+        {
+          "severity": "blocking",
+          "title": "Documented example fails for modified function `bulk_discount_percent`",
+          "location": {
+            "file": "shopcart/cart.py",
+            "where": "bulk_discount_percent",
+            "lines": [
+              47,
+              57
+            ]
+          },
+          "sources": [
+            "simulated-diff",
+            "simulated-spec"
+          ],
+          "corroborated": true,
+          "rules": [
+            "documented-behaviour",
+            "inconsistent-boundary"
+          ],
+          "probes": [
+            ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n"
+          ],
+          "suggestions": [
+            "Make `bulk_discount_percent` satisfy every documented example, not only the reported one.",
+            "Check whether line 57 needs the same `>` -> `>=` change."
+          ],
+          "findings": [
+            {
+              "severity": "blocking",
+              "rule": "documented-behaviour",
+              "title": "Documented example fails for modified function `bulk_discount_percent`",
+              "detail": "`bulk_discount_percent(50)` is documented to return `10.0` but returns `5.0` after the patch.",
+              "file": "shopcart/cart.py",
+              "line": 47,
+              "function": "bulk_discount_percent",
+              "evidence": "**********************************************************************\nFile \"probe\", line 2, in probe\nFailed example:\n    bulk_discount_percent(50)\nExpected:\n    10.0\nGot:\n    5.0\n\n",
+              "suggestion": "Make `bulk_discount_percent` satisfy every documented example, not only the reported one.",
+              "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n",
+              "reviewer": "simulated-spec",
+              "confirmed": true,
+              "probe_outcome": "mismatch"
+            },
+            {
+              "severity": "major",
+              "rule": "inconsistent-boundary",
+              "title": "Same `>` boundary pattern left unchanged at line 57",
+              "detail": "The patch changed `>` to `>=` at line 59 but `if quantity > 50:` in the same function still uses `>`.",
+              "file": "shopcart/cart.py",
+              "line": 57,
+              "function": "bulk_discount_percent",
+              "evidence": "",
+              "suggestion": "Check whether line 57 needs the same `>` -> `>=` change.",
+              "probe": null,
+              "reviewer": "simulated-diff",
+              "confirmed": null
+            }
+          ],
+          "id": "F1"
+        }
+      ],
+      "blocking_count": 1,
+      "signature": "068d6d75d031",
+      "checks": [],
+      "strategy": "build_on_previous",
+      "probes": [
+        ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n"
+      ],
+      "focus": {
+        "lines": {
+          "shopcart/cart.py": [
+            47,
+            57
+          ]
+        },
+        "functions": [
+          "bulk_discount_percent"
+        ]
+      }
+    },
+    "llm_call_ids": [],
+    "tool_calls": []
+  },
+  {
+    "n": 2,
+    "status": "passed",
+    "base": "0efcbda671bc2871897e92179d3ebad2d3aba186",
+    "commit": "de861a759c341fa2c90b9d0a43904e46dfae6de1",
+    "fingerprint": "36826813d632e6b0",
+    "patch": {
+      "file": "shopcart/cart.py",
+      "mutation": "line 57: `>` -> `>=`",
+      "tier": 1,
+      "coder": "simulated-repair",
+      "strategy": "build_on_previous",
+      "base": "0efcbda671bc2871897e92179d3ebad2d3aba186",
+      "addressed": [
+        "F1"
+      ],
+      "required_probes": 1,
+      "candidates_evaluated": 1,
+      "skipped_rejected": 0
+    },
+    "decision": "pass",
+    "decision_reason": "Iteration 2: no blocking findings and all deterministic checks are green.",
+    "failure_signature": null,
+    "blocking_count": 0,
+    "started_at": 1792087344.8199053,
+    "finished_at": 1792087350.8416727,
+    "tests": {
+      "iteration": 2,
+      "commit": "de861a759c341fa2c90b9d0a43904e46dfae6de1",
+      "repro_passed": true,
+      "suite_passed": true,
+      "repro_summary": "1 passed in 0.01s",
+      "suite_summary": "18 passed in 0.04s",
+      "probes": [
+        {
+          "id": "P-d828a288",
+          "source": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n",
+          "passed": true,
+          "output": "ok\n"
+        }
+      ],
+      "probes_passed": true,
+      "security": {
+        "passed": true,
+        "findings": [],
+        "files_changed": [
+          "shopcart/cart.py"
+        ],
+        "lines_added": 2,
+        "lines_removed": 2,
+        "scanner": "static pattern + scope rules v1"
+      },
+      "all_passed": true
+    },
+    "feedback": {
+      "items": [],
+      "blocking_count": 0,
+      "signature": null,
+      "checks": [],
+      "strategy": "build_on_previous",
+      "probes": [],
+      "focus": {
+        "lines": {},
+        "functions": []
+      }
+    },
+    "llm_call_ids": [],
+    "tool_calls": []
+  }
+]

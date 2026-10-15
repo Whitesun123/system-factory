@@ -230,12 +230,14 @@ class Orchestrator:
         if (decision == "approved" and wf["kind"] in ("bug", "feature")
                 and wf["data"].get("quality_gate", {}).get("status") != "SUCCESS"):
             raise IllegalTransition(f"workflow {wf_id} has not passed the quality gate; it cannot be approved")
+        # The transition is validated inside one transaction, so of two concurrent decisions only one wins;
+        # the approval record and step output are written only after it succeeds.
+        self.store.transition(wf_id, WF.APPROVED if decision == "approved" else WF.REJECTED,
+                              actor=f"human:{actor.strip()}", reason=comment or decision)
         self.store.record_approval(wf_id, decision, actor.strip(), comment)
         step = self.store.get_step(wf_id, "approval")
         self.store.update_step(step["id"], status=STEP.SUCCEEDED, finished_at=time.time(),
                                output={"decision": decision, "actor": actor.strip(), "comment": comment})
-        self.store.transition(wf_id, WF.APPROVED if decision == "approved" else WF.REJECTED,
-                              actor=f"human:{actor.strip()}", reason=comment or decision)
         if decision == "approved" and wf.get("branch"):
             self.store.log(wf_id, f"Branch {wf['branch']} is ready for a human to merge. System Factory does not "
                                   "merge, push or deploy.", actor="orchestrator")

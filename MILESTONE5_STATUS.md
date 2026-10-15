@@ -103,3 +103,25 @@ Observations:
    generated evidence in `data-real-demo/evidence/`.
 2. Decide the Reviewer B model from a larger labeled benchmark (more than 5 cases, including correct patches).
 3. Containerize agent command execution (Docker), then consider making the repository public.
+
+## Milestone 5.1 (review fixes, offline only)
+
+- CI fix: `tests/test_api.py` asserted an obsolete field (`claude_runtime_available`); it now checks the current
+  `runtime_info()` contract. CI matrix no longer fails fast, so Windows and Ubuntu both report.
+- Tests are hermetic: `tests/conftest.py` clears `SF_*`/`ANTHROPIC_*` and points Ollama at a closed port.
+- Security fixes with regression tests (`tests/test_security_regressions.py`):
+  F1 doctest-line injection via multi-line `expected` in reviewer checks; F2 untrusted (model-written) probes are
+  statically vetted before execution; F3 localhost API now enforces a Host allow-list (DNS rebinding) and refuses
+  cross-origin state changes (CSRF); F4 approval decision is gated by the atomic state transition (no duplicate
+  approval rows under concurrency); F5 coder `read_file` errors become tool errors; F6 POSIX timeouts kill the
+  whole process group.
+- Dashboard shows worktree paths relative to the data dir (no user paths in screenshots); deep links `#wf=N&tab=…`.
+- Full offline suite locally (Windows): **69 passed, 1 skipped** (F6 is POSIX-only).
+- Deterministic cases verified by tests: A `test_first_implementation_fails_review_then_is_corrected`,
+  B `test_repeated_solution_is_detected_and_escalated`, C `test_quality_gate_rejects_test_tampering_and_dangerous_code`
+  + `test_case_c_llm_coder_cannot_edit_tests_or_escape_scope` + `test_approval_requires_quality_gate_success`.
+- Sanitized deterministic evidence: `examples/evidence/case-a-revision-after-review/`,
+  `examples/evidence/case-b-repeated-solution-escalated/`. Real screenshots: `docs/screenshots/`.
+- Not done in 5.1: reconciling `PRESENTATION.md` / `DEMO.md` with the Ollama runtime (they still describe the
+  simulated runtime as the only one; treat those sections as historical). Isolation remains process-level, not a
+  container, and is not suitable for untrusted repositories.

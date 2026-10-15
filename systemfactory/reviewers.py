@@ -374,10 +374,64 @@ def check_to_probe(check: dict, inventory: list[dict]) -> str | None:
     if not expected:
         return None
     try:
-        ast.literal_eval(expected)
+        value = ast.literal_eval(expected)
     except (ValueError, SyntaxError):
-        expected = repr(expected)  # an unquoted text result: compare as a string
-    return f">>> from {fn['module']} import {name}\n>>> {ast.unparse(expr)}\n{expected}\n"
+        value = expected  # an unquoted text result: compare as a string
+    # Always emit the single-line repr of the value: a multi-line literal could otherwise smuggle extra
+    # `>>> ...` lines (i.e. arbitrary code) into the doctest.
+    return f">>> from {fn['module']} import {name}\n>>> {ast.unparse(expr)}\n{repr(value)}\n"
+
+
+TRUSTED_REVIEWERS = {"simulated-spec", "simulated-diff"}  # deterministic, written by System Factory
+FORBIDDEN_NAMES = {"open", "exec", "eval", "compile", "getattr", "setattr", "delattr", "globals", "locals", "vars",
+                   "input", "breakpoint", "exit", "quit", "help", "memoryview", "classmethod", "staticmethod", "type"}
+FORBIDDEN_NODES = (ast.Import, ast.Lambda, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.With,
+                   ast.AsyncWith, ast.Try, ast.While, ast.For, ast.AsyncFor, ast.Global, ast.Nonlocal, ast.Delete,
+                   ast.Raise, ast.Await, ast.Yield, ast.YieldFrom)
+
+
+def probe_is_safe(probe: str, allowed_modules: set[str]) -> bool:
+    """Static vetting of a free-form doctest probe written by a model (or influenced by repository content).
+
+    Allowed: `from <changed module> import ...`, assignments, calls and attribute access on ordinary names,
+    literals. Rejected: other imports, dunder/underscore names or attributes, builtins that reach the
+    filesystem or the interpreter, control flow and definitions. This is defence in depth on top of the
+    process-level sandbox, not a substitute for a container.
+    """
+    try:
+        examples = doctest.DocTestParser().get_examples(probe)
+    except ValueError:
+        return False
+    if not examples:
+        return False
+    for ex in examples:
+        try:
+            tree = ast.parse(ex.source)
+        except SyntaxError:
+            return False
+        for node in ast.walk(tree):
+            if isinstance(node, FORBIDDEN_NODES):
+                return False
+            if isinstance(node, ast.ImportFrom) and (node.level or node.module not in allowed_modules
+                                                     or any(a.name == "*" or a.name.startswith("_") for a in node.names)):
+                return False
+            if isinstance(node, ast.Name) and (node.id in FORBIDDEN_NAMES or node.id.startswith("_")):
+                return False
+            if isinstance(node, ast.Attribute) and node.attr.startswith("_"):
+                return False
+    return True
+
+
+def vet_findings(findings: list[dict], files_after: dict[str, str]) -> list[dict]:
+    """Drop unsafe probes from an untrusted reviewer's findings (the finding then counts as unverified)."""
+    allowed = {_module(f) for f in files_after}
+    out = []
+    for f in findings:
+        p = f.get("probe")
+        if p and not probe_is_safe(p, allowed):
+            f = {**f, "probe": None, "detail": (f.get("detail") or "") + " [probe rejected by safety vetting]"}
+        out.append(f)
+    return out
 
 REVIEWER_FOCUS = {
     "ollama-a": ("Reviewer A", "requirements, correctness and architecture",

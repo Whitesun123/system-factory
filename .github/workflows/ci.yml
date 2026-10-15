@@ -3,6 +3,7 @@ on: [push, pull_request]
 jobs:
   offline-tests:
     strategy:
+      fail-fast: false   # report both operating systems even if one fails
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}

@@ -555,7 +555,10 @@ def review_panel(ctx: StepContext) -> dict:
         try:
             # deep copy: reviewers cannot see or influence each other's input or output
             res = adapter.review(copy.deepcopy(bundle), tools)
-            rec.update(verdict=res["verdict"], summary=res.get("summary", ""), findings=res.get("findings", []),
+            findings = res.get("findings", [])
+            if adapter.name not in reviewers_mod.TRUSTED_REVIEWERS:
+                findings = reviewers_mod.vet_findings(findings, bundle["files_after"])
+            rec.update(verdict=res["verdict"], summary=res.get("summary", ""), findings=findings,
                        input_tokens=res.get("input_tokens", 0), output_tokens=res.get("output_tokens", 0),
                        cost_usd=res.get("cost_usd", 0.0), model=res.get("model", adapter.model),
                        execution=res.get("execution"), model_digest=res.get("model_digest"),

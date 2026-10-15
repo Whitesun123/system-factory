@@ -4,12 +4,14 @@ Binds to localhost only by default and has no authentication: it is a single-use
 """
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
+from urllib.parse import urlsplit
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, Response
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 
 import time
@@ -23,6 +25,7 @@ from .roles import ROLE_POLICIES
 from .statemachine import IllegalTransition
 
 STATIC = Path(__file__).parent / "static"
+LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
 
 class IssueIn(BaseModel):
@@ -64,6 +67,22 @@ def create_app(settings: Settings | None = None, *, start_worker: bool = True) -
     app = FastAPI(title="System Factory", version="0.1.0", lifespan=lifespan)
     app.state.orch, app.state.worker = orch, worker
     status_cache: dict = {}
+    allowed_hosts = LOCAL_HOSTS | {h.strip().lower() for h in os.environ.get("SF_ALLOWED_HOSTS", "").split(",") if h.strip()}
+
+    @app.middleware("http")
+    async def local_only(request: Request, call_next):
+        """The API has no authentication, so it only answers local clients:
+        - the Host header must name a local host (blocks DNS-rebinding attacks), and
+        - state-changing requests carrying an Origin must come from a local origin (blocks cross-site
+          requests from any web page the user happens to visit, e.g. a no-cors POST to /cancel)."""
+        host = urlsplit("//" + (request.headers.get("host") or "")).hostname or ""
+        if host.lower() not in allowed_hosts:
+            return JSONResponse({"detail": f"host {host!r} not allowed"}, status_code=403)
+        origin = request.headers.get("origin")
+        if request.method not in ("GET", "HEAD", "OPTIONS") and origin is not None:
+            if (urlsplit(origin).hostname or "").lower() not in allowed_hosts:
+                return JSONResponse({"detail": "cross-origin request refused"}, status_code=403)
+        return await call_next(request)
 
     def guard(fn, *args, **kwargs):
         try:

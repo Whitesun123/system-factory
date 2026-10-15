@@ -6,9 +6,13 @@ from systemfactory.orchestrator import Worker
 
 def test_api_end_to_end(settings):
     app = create_app(settings, start_worker=False)
-    with TestClient(app) as client:
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
         h = client.get("/api/health").json()
-        assert h["runtime"]["mode"] == "simulated" and h["runtime"]["claude_runtime_available"] is False
+        rt = h["runtime"]
+        assert rt["mode"] == "simulated" and rt["available_modes"] == ["simulated", "ollama"]
+        assert rt["claude_reviewer_available"] is False and rt["paid_inference_allowed"] is False
+        assert set(rt["models"]) == {"coder", "reviewer_a", "reviewer_b"}
+        assert rt["ollama"]["reachable"] is False  # tests point Ollama at a closed port (conftest)
         assert "System Factory" in client.get("/").text
 
         wf_id = client.post("/api/samples/shipping", json={}).json()["workflow_id"]

@@ -1,0 +1,37 @@
+{
+  "status": "not reached",
+  "gate": null,
+  "gate_report": null,
+  "escalation": {
+    "iteration": 2,
+    "decision": "stalled",
+    "reason": "Repeated solution: iteration 2 produced the same patch as iteration 1 (fingerprint 46f1a5a37c).",
+    "open_blocking": [
+      {
+        "id": "F1",
+        "title": "Previously reported defect still present (P-d828a288)",
+        "location": {
+          "file": null,
+          "where": "general",
+          "lines": []
+        }
+      },
+      {
+        "id": "F2",
+        "title": "Documented example fails for modified function `bulk_discount_percent`",
+        "location": {
+          "file": "shopcart/cart.py",
+          "where": "bulk_discount_percent",
+          "lines": [
+            47,
+            57
+          ]
+        }
+      }
+    ],
+    "recommended_action": "Review the iteration history, then fix manually, give the agent more context, or retry to grant one more iteration."
+  },
+  "approvals": [],
+  "final_state": "blocked",
+  "termination_reason": "Escalated to a human after iteration 2: Repeated solution: iteration 2 produced the same patch as iteration 1 (fingerprint 46f1a5a37c)."
+}

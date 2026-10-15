@@ -307,7 +307,7 @@ function renderDetail(d) {
   }).join("");
 
   const u = w.usage || {};
-  const kv = [["Kind", w.kind || "–"], ["Branch", w.branch || "–"], ["Worktree", w.worktree || "–"],
+  const kv = [["Kind", w.kind || "–"], ["Branch", w.branch || "–"], ["Worktree", w.worktree ? "<data>/" + w.worktree.replace(/\\/g, "/").split("/").slice(-2).join("/") : "–"],
     ["Base commit", (w.base_commit || "–").slice(0, 12)], ["Started", fmtT(w.started_at)], ["Automation time", dur(w.started_at, w.finished_at)],
     ...(d.approvals.length ? [["Decision", `${d.approvals.at(-1).decision} by ${d.approvals.at(-1).actor} at ${fmtT(d.approvals.at(-1).ts)}`]] : []),
     ["Usage", `${u.test_runs || 0} test runs · ${u.candidate_evals || 0} repair candidates · ${u.llm_tokens || 0} LLM tokens · $${(u.cost_usd || 0).toFixed(2)}`],
@@ -420,6 +420,10 @@ $("#submitSample").onclick = () => submit(`/api/samples/${$("#sample").value}`, 
   coder: $("#stubborn").checked ? "simulated-stubborn" : "default" });
 $("#submitCustom").onclick = () => submit("/api/issues", { title: $("#ctitle").value, body: $("#cbody").value, runtime: $("#runtimeSel").value });
 
+// Deep link: #wf=<id>&tab=<iterations|agents|evidence|diff|log|attempts|data>
+const hashArgs = new URLSearchParams(location.hash.slice(1));
+if (hashArgs.get("wf")) selected = +hashArgs.get("wf");
+if (hashArgs.get("tab")) tab = hashArgs.get("tab");
 loadSamples(); refresh(); setInterval(refresh, 1500);
 </script>
 </body>

@@ -14,6 +14,14 @@ Two runtimes share one pipeline:
 
 See [MILESTONE5_STATUS.md](MILESTONE5_STATUS.md) for what has and has not been verified.
 
+## Screenshots (real captures of deterministic runs)
+
+![Review loop: iteration 1 blocked by an executed check, feedback, iteration 2 passes, quality gate](docs/screenshots/01-iterations-review-loop.png)
+![Repeated solution detected and escalated](docs/screenshots/02-stall-escalation.png)
+![Agent activity and test evidence](docs/screenshots/03-agents-test-evidence.png)
+
+Matching sanitized evidence packages: [examples/evidence/](examples/evidence/).
+
 ## Architecture in one paragraph
 
 A deterministic orchestrator ([orchestrator.py](systemfactory/orchestrator.py)) owns the state machine,

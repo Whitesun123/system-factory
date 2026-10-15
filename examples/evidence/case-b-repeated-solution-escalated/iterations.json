@@ -1,0 +1,340 @@
+[
+  {
+    "n": 1,
+    "status": "revise",
+    "base": "022343d766fd7ec94a8a6f735e00345c0d1d05f9",
+    "commit": "994f475b2d7c557f1bbc1b453cb16406ae4fa8a5",
+    "fingerprint": "46f1a5a37cfcd72f",
+    "patch": {
+      "file": "shopcart/cart.py",
+      "mutation": "line 59: `>` -> `>=`",
+      "tier": 1,
+      "coder": "simulated-stubborn",
+      "strategy": "fresh",
+      "base": "022343d766fd7ec94a8a6f735e00345c0d1d05f9",
+      "addressed": [],
+      "required_probes": 0,
+      "candidates_evaluated": 2,
+      "skipped_rejected": 0
+    },
+    "decision": "revise",
+    "decision_reason": "Iteration 1: 1 blocking finding(s); sending feedback to the coding agent.",
+    "failure_signature": "068d6d75d031",
+    "blocking_count": 1,
+    "started_at": 1792087356.613295,
+    "finished_at": 1792087362.12141,
+    "tests": {
+      "iteration": 1,
+      "commit": "994f475b2d7c557f1bbc1b453cb16406ae4fa8a5",
+      "repro_passed": true,
+      "suite_passed": true,
+      "repro_summary": "1 passed in 0.01s",
+      "suite_summary": "18 passed in 0.03s",
+      "probes": [],
+      "probes_passed": true,
+      "security": {
+        "passed": true,
+        "findings": [],
+        "files_changed": [
+          "shopcart/cart.py"
+        ],
+        "lines_added": 1,
+        "lines_removed": 1,
+        "scanner": "static pattern + scope rules v1"
+      },
+      "all_passed": true
+    },
+    "feedback": {
+      "items": [
+        {
+          "severity": "blocking",
+          "title": "Documented example fails for modified function `bulk_discount_percent`",
+          "location": {
+            "file": "shopcart/cart.py",
+            "where": "bulk_discount_percent",
+            "lines": [
+              47,
+              57
+            ]
+          },
+          "sources": [
+            "simulated-diff",
+            "simulated-spec"
+          ],
+          "corroborated": true,
+          "rules": [
+            "documented-behaviour",
+            "inconsistent-boundary"
+          ],
+          "probes": [
+            ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n"
+          ],
+          "suggestions": [
+            "Make `bulk_discount_percent` satisfy every documented example, not only the reported one.",
+            "Check whether line 57 needs the same `>` -> `>=` change."
+          ],
+          "findings": [
+            {
+              "severity": "blocking",
+              "rule": "documented-behaviour",
+              "title": "Documented example fails for modified function `bulk_discount_percent`",
+              "detail": "`bulk_discount_percent(50)` is documented to return `10.0` but returns `5.0` after the patch.",
+              "file": "shopcart/cart.py",
+              "line": 47,
+              "function": "bulk_discount_percent",
+              "evidence": "**********************************************************************\nFile \"probe\", line 2, in probe\nFailed example:\n    bulk_discount_percent(50)\nExpected:\n    10.0\nGot:\n    5.0\n\n",
+              "suggestion": "Make `bulk_discount_percent` satisfy every documented example, not only the reported one.",
+              "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n",
+              "reviewer": "simulated-spec",
+              "confirmed": true,
+              "probe_outcome": "mismatch"
+            },
+            {
+              "severity": "major",
+              "rule": "inconsistent-boundary",
+              "title": "Same `>` boundary pattern left unchanged at line 57",
+              "detail": "The patch changed `>` to `>=` at line 59 but `if quantity > 50:` in the same function still uses `>`.",
+              "file": "shopcart/cart.py",
+              "line": 57,
+              "function": "bulk_discount_percent",
+              "evidence": "",
+              "suggestion": "Check whether line 57 needs the same `>` -> `>=` change.",
+              "probe": null,
+              "reviewer": "simulated-diff",
+              "confirmed": null
+            }
+          ],
+          "id": "F1"
+        }
+      ],
+      "blocking_count": 1,
+      "signature": "068d6d75d031",
+      "checks": [],
+      "strategy": "build_on_previous",
+      "probes": [
+        ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n"
+      ],
+      "focus": {
+        "lines": {
+          "shopcart/cart.py": [
+            47,
+            57
+          ]
+        },
+        "functions": [
+          "bulk_discount_percent"
+        ]
+      }
+    },
+    "llm_call_ids": [],
+    "tool_calls": []
+  },
+  {
+    "n": 2,
+    "status": "stalled",
+    "base": "022343d766fd7ec94a8a6f735e00345c0d1d05f9",
+    "commit": "0a6f8ba86117d0d8fc75bdb836ba97585b2e7d97",
+    "fingerprint": "46f1a5a37cfcd72f",
+    "patch": {
+      "file": "shopcart/cart.py",
+      "mutation": "line 59: `>` -> `>=`",
+      "tier": 1,
+      "coder": "simulated-stubborn",
+      "strategy": "fresh",
+      "base": "022343d766fd7ec94a8a6f735e00345c0d1d05f9",
+      "addressed": [],
+      "required_probes": 0,
+      "candidates_evaluated": 2,
+      "skipped_rejected": 0
+    },
+    "decision": "stalled",
+    "decision_reason": "Repeated solution: iteration 2 produced the same patch as iteration 1 (fingerprint 46f1a5a37c).",
+    "failure_signature": "a9351e1d7d75",
+    "blocking_count": 2,
+    "started_at": 1792087362.273063,
+    "finished_at": 1792087368.627631,
+    "tests": {
+      "iteration": 2,
+      "commit": "0a6f8ba86117d0d8fc75bdb836ba97585b2e7d97",
+      "repro_passed": true,
+      "suite_passed": true,
+      "repro_summary": "1 passed in 0.01s",
+      "suite_summary": "18 passed in 0.03s",
+      "probes": [
+        {
+          "id": "P-d828a288",
+          "source": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n",
+          "passed": false,
+          "output": "**********************************************************************\nFile \"probe\", line 2, in probe\nFailed example:\n    bulk_discount_percent(50)\nExpected:\n    10.0\nGot:\n    5.0\n\n"
+        }
+      ],
+      "probes_passed": false,
+      "security": {
+        "passed": true,
+        "findings": [],
+        "files_changed": [
+          "shopcart/cart.py"
+        ],
+        "lines_added": 1,
+        "lines_removed": 1,
+        "scanner": "static pattern + scope rules v1"
+      },
+      "all_passed": false
+    },
+    "feedback": {
+      "items": [
+        {
+          "severity": "blocking",
+          "title": "Previously reported defect still present (P-d828a288)",
+          "location": {
+            "file": null,
+            "where": "general",
+            "lines": []
+          },
+          "sources": [
+            "deterministic-tests",
+            "simulated-diff"
+          ],
+          "corroborated": true,
+          "rules": [
+            "probe-failing",
+            "repeated-solution",
+            "unresolved-feedback"
+          ],
+          "probes": [
+            ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n"
+          ],
+          "suggestions": [
+            "Address the earlier feedback instead of resubmitting."
+          ],
+          "findings": [
+            {
+              "severity": "blocking",
+              "rule": "probe-failing",
+              "title": "Previously reported defect still present (P-d828a288)",
+              "detail": "",
+              "file": null,
+              "line": null,
+              "function": null,
+              "evidence": "**********************************************************************\nFile \"probe\", line 2, in probe\nFailed example:\n    bulk_discount_percent(50)\nExpected:\n    10.0\nGot:\n    5.0\n\n",
+              "suggestion": "",
+              "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n",
+              "reviewer": "deterministic-tests",
+              "confirmed": null
+            },
+            {
+              "severity": "blocking",
+              "rule": "unresolved-feedback",
+              "title": "Feedback from an earlier iteration is still unresolved (P-d828a288)",
+              "detail": "",
+              "file": null,
+              "line": null,
+              "function": null,
+              "evidence": "**********************************************************************\nFile \"probe\", line 2, in probe\nFailed example:\n    bulk_discount_percent(50)\nExpected:\n    10.0\nGot:\n    5.0\n\n",
+              "suggestion": "",
+              "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n",
+              "reviewer": "simulated-diff",
+              "confirmed": true,
+              "probe_outcome": "mismatch"
+            },
+            {
+              "severity": "blocking",
+              "rule": "repeated-solution",
+              "title": "Patch is identical to the one rejected in iteration 1",
+              "detail": "",
+              "file": null,
+              "line": null,
+              "function": null,
+              "evidence": "",
+              "suggestion": "Address the earlier feedback instead of resubmitting.",
+              "probe": null,
+              "reviewer": "simulated-diff",
+              "confirmed": null
+            }
+          ],
+          "id": "F1"
+        },
+        {
+          "severity": "blocking",
+          "title": "Documented example fails for modified function `bulk_discount_percent`",
+          "location": {
+            "file": "shopcart/cart.py",
+            "where": "bulk_discount_percent",
+            "lines": [
+              47,
+              57
+            ]
+          },
+          "sources": [
+            "simulated-diff",
+            "simulated-spec"
+          ],
+          "corroborated": true,
+          "rules": [
+            "documented-behaviour",
+            "inconsistent-boundary"
+          ],
+          "probes": [
+            ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n"
+          ],
+          "suggestions": [
+            "Make `bulk_discount_percent` satisfy every documented example, not only the reported one.",
+            "Check whether line 57 needs the same `>` -> `>=` change."
+          ],
+          "findings": [
+            {
+              "severity": "blocking",
+              "rule": "documented-behaviour",
+              "title": "Documented example fails for modified function `bulk_discount_percent`",
+              "detail": "`bulk_discount_percent(50)` is documented to return `10.0` but returns `5.0` after the patch.",
+              "file": "shopcart/cart.py",
+              "line": 47,
+              "function": "bulk_discount_percent",
+              "evidence": "**********************************************************************\nFile \"probe\", line 2, in probe\nFailed example:\n    bulk_discount_percent(50)\nExpected:\n    10.0\nGot:\n    5.0\n\n",
+              "suggestion": "Make `bulk_discount_percent` satisfy every documented example, not only the reported one.",
+              "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n",
+              "reviewer": "simulated-spec",
+              "confirmed": true,
+              "probe_outcome": "mismatch"
+            },
+            {
+              "severity": "major",
+              "rule": "inconsistent-boundary",
+              "title": "Same `>` boundary pattern left unchanged at line 57",
+              "detail": "The patch changed `>` to `>=` at line 59 but `if quantity > 50:` in the same function still uses `>`.",
+              "file": "shopcart/cart.py",
+              "line": 57,
+              "function": "bulk_discount_percent",
+              "evidence": "",
+              "suggestion": "Check whether line 57 needs the same `>` -> `>=` change.",
+              "probe": null,
+              "reviewer": "simulated-diff",
+              "confirmed": null
+            }
+          ],
+          "id": "F2"
+        }
+      ],
+      "blocking_count": 2,
+      "signature": "a9351e1d7d75",
+      "checks": [],
+      "strategy": "build_on_previous",
+      "probes": [
+        ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n"
+      ],
+      "focus": {
+        "lines": {
+          "shopcart/cart.py": [
+            47,
+            57
+          ]
+        },
+        "functions": [
+          "bulk_discount_percent"
+        ]
+      }
+    },
+    "llm_call_ids": [],
+    "tool_calls": []
+  }
+]

@@ -1,0 +1,86 @@
+{
+  "system_factory": {
+    "version": "0.1.0",
+    "git_revision": "e9c444ce1b28088921b37173803203c0eb870767",
+    "git_dirty": true
+  },
+  "exported_at": "2026-10-15T20:02:59+0200",
+  "environment": {
+    "python": "3.13.12",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "gpu": "NVIDIA GeForce RTX 5080, 16303 MiB, 617.14",
+    "ollama": null
+  },
+  "workflow": {
+    "id": 2,
+    "issue_id": 2,
+    "title": "Bulk discount not applied when ordering exactly 10 units",
+    "source": "sample:bulk",
+    "kind": "bug",
+    "state": "blocked",
+    "runtime": "simulated",
+    "options": {
+      "runtime": "simulated",
+      "faults": {},
+      "throttle_ms": 0,
+      "coder": "simulated-stubborn"
+    },
+    "budget": {
+      "max_wall_seconds": 900,
+      "max_candidate_evals": 400,
+      "max_test_runs": 800,
+      "max_iterations": 4,
+      "max_loop_seconds": 600,
+      "max_llm_tokens": 600000,
+      "max_cost_usd": 1.0,
+      "stall_window": 2
+    },
+    "usage": {
+      "candidate_evals": 4,
+      "test_runs": 22,
+      "llm_tokens": 0,
+      "cost_usd": 0.0
+    },
+    "branch": "sf/wf-2",
+    "base_commit": "e814c54d435ee0a1e3e07ebb1a7a677dec77e541",
+    "final_commit": "0a6f8ba86117d0d8fc75bdb836ba97585b2e7d97",
+    "created_at": 1792087335.3773282,
+    "started_at": 1792087353.542285,
+    "finished_at": 1792087368.6746864
+  },
+  "execution_modes": [
+    "simulated"
+  ],
+  "models": {},
+  "reviewer_diversity": {
+    "reviewers": 2,
+    "real_model_reviewers": 0,
+    "real_providers": [],
+    "real_models": [],
+    "real_provider_diversity": false,
+    "label": "SIMULATED: no real models; reviewers are independent by technique, not by model diversity"
+  },
+  "iterations": 2,
+  "termination_reason": "Escalated to a human after iteration 2: Repeated solution: iteration 2 produced the same patch as iteration 1 (fingerprint 46f1a5a37c).",
+  "quality_gate": null,
+  "totals": {
+    "llm_calls": 0,
+    "llm_calls_ok": 0,
+    "llm_calls_failed": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "inference_seconds": 0,
+    "tool_calls": 0,
+    "test_runs": 8,
+    "automation_seconds": 15.13
+  },
+  "reproduce": [
+    "python -m systemfactory init-demo",
+    "python -m systemfactory submit --sample bulk --runtime simulated",
+    "python -m systemfactory run",
+    "python -m systemfactory show 2",
+    "python -m systemfactory export 2",
+    "git -C <DATA_DIR>/repos/shopcart log --oneline e814c54d43..sf/wf-2"
+  ],
+  "honesty": "Token counts are copied from the runtime's responses; nothing is estimated. Simulated components are labelled 'simulated'. Different models on one runtime are one provider."
+}

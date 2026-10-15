@@ -180,7 +180,12 @@ def run(ctx: StepContext, *, n: int, prev: dict | None, fb: dict, strategy: str,
                 tool("read_file", {"path": path}, False, "not a tracked file", t0, call["id"])
                 messages.append({"role": "user", "content": f"'{path}' is not a tracked file. Use list_files."})
                 continue
-            text = read_only.read_text(path)[:20000]
+            try:
+                text = read_only.read_text(path)[:20000]
+            except (PermissionError, OSError, UnicodeDecodeError) as e:
+                tool("read_file", {"path": path}, False, f"refused: {e}", t0, call["id"])
+                messages.append({"role": "user", "content": f"'{path}' cannot be read: {e}"})
+                continue
             tool("read_file", {"path": path}, True, f"{len(text)} chars", t0, call["id"])
             messages.append({"role": "user", "content": _fence(path, text)})
         elif a == "run_tests":

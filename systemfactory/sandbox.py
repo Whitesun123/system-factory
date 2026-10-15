@@ -11,6 +11,7 @@ from __future__ import annotations
 import fnmatch
 import os
 import re
+import signal
 import subprocess
 import sys
 import threading
@@ -85,7 +86,10 @@ def _kill_tree(p: subprocess.Popen) -> None:
         subprocess.run(["taskkill", "/T", "/F", "/PID", str(p.pid)],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     else:
-        p.kill()
+        try:
+            os.killpg(p.pid, signal.SIGKILL)  # the child leads its own session (start_new_session)
+        except (ProcessLookupError, PermissionError):
+            p.kill()
 
 
 def run_command(argv: list[str], cwd: Path | str, *, timeout: float, env: dict,
@@ -94,7 +98,8 @@ def run_command(argv: list[str], cwd: Path | str, *, timeout: float, env: dict,
     start = time.monotonic()
     p = subprocess.Popen(argv, cwd=str(cwd), env=env, stdin=subprocess.DEVNULL,
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                         text=True, encoding="utf-8", errors="replace")
+                         text=True, encoding="utf-8", errors="replace",
+                         start_new_session=sys.platform != "win32")
     while True:
         try:
             out, _ = p.communicate(timeout=poll)
