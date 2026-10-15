@@ -142,8 +142,17 @@ def collect(orch, wf_id: int) -> dict[str, object]:
               "tool_calls": len(tools), "test_runs": len(tests),
               "automation_seconds": round((wf["finished_at"] or time.time()) - wf["started_at"], 2) if wf["started_at"] else None}
     manifest = {
-        "system_factory": {"version": __version__, "git_revision": _git(PROJECT_ROOT, "rev-parse", "HEAD"),
-                           "git_dirty": bool(_git(PROJECT_ROOT, "status", "--porcelain"))},
+        # Which System Factory code RAN the workflow (recorded at submission) vs. the checkout that EXPORTED it.
+        "system_factory": {
+            "version": __version__,
+            "run": data.get("provenance") or {"source_revision": None, "note": "workflow predates provenance recording"},
+            "export": {"source_revision": _git(PROJECT_ROOT, "rev-parse", "HEAD"),
+                       "source_dirty": bool(_git(PROJECT_ROOT, "status", "--porcelain", "--untracked-files=no"))},
+        },
+        "target_repository": {
+            "note": "SHAs of the generated demo repository under <DATA_DIR>/repos; run-local identifiers, "
+                    "not System Factory commits",
+            "base_commit": wf.get("base_commit"), "final_commit": head, "branch": wf.get("branch")},
         "exported_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "environment": {"python": sys.version.split()[0], "platform": platform.platform(), "gpu": _gpu(),
                         "ollama": {k: ollama.get(k) for k in ("url", "reachable", "version")} if ollama else None},

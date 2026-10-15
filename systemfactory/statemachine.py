@@ -57,6 +57,7 @@ class IT:
     PASSED = "passed"            # closed: no blocking findings, proceeds to the quality gate
     STALLED = "stalled"          # closed: repeated solution / identical failures / no progress -> escalate
     EXHAUSTED = "exhausted"      # closed: iteration, time or cost budget reached -> escalate
+    UNRESOLVED = "unresolved"    # closed: unsupported/conflicting evidence or uninspected approvals -> escalate
     FAILED = "failed"            # closed: a step in the iteration failed permanently
     CANCELLED = "cancelled"
 
@@ -67,8 +68,8 @@ ITERATION_TRANSITIONS: dict[str, set[str]] = {
     IT.CODING: {IT.TESTING, IT.STALLED, IT.FAILED, IT.CANCELLED},
     IT.TESTING: {IT.REVIEWING, IT.FAILED, IT.CANCELLED},
     IT.REVIEWING: {IT.AGGREGATING, IT.STALLED, IT.EXHAUSTED, IT.FAILED, IT.CANCELLED},
-    IT.AGGREGATING: {IT.REVISE, IT.PASSED, IT.STALLED, IT.EXHAUSTED, IT.FAILED, IT.CANCELLED},
-    IT.REVISE: set(), IT.PASSED: set(), IT.STALLED: set(), IT.EXHAUSTED: set(),
+    IT.AGGREGATING: {IT.REVISE, IT.PASSED, IT.STALLED, IT.EXHAUSTED, IT.UNRESOLVED, IT.FAILED, IT.CANCELLED},
+    IT.REVISE: set(), IT.PASSED: set(), IT.STALLED: set(), IT.EXHAUSTED: set(), IT.UNRESOLVED: set(),
     IT.FAILED: set(), IT.CANCELLED: set(),
 }
 

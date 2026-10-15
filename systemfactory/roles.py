@@ -6,6 +6,7 @@ same signatures and the same permission policies.
 """
 from __future__ import annotations
 
+import ast
 import copy
 import doctest
 import re
@@ -585,37 +586,68 @@ def review_panel(ctx: StepContext) -> dict:
     div = reviewers_mod.diversity(results)
     ctx.log(f"Iteration {n}: {len(ok)} independent reviews — " +
             ", ".join(f"{r['reviewer']}={r['verdict']}" for r in results) + f". Diversity: {div['label']}")
-    return {"iteration": n, "reviews": results, "diversity": div}
+    return {"iteration": n, "reviews": results, "diversity": div, "files_after": bundle["files_after"]}
 
 
 # ------------------------------------------------------------------ loop step 4: aggregation + decision
+def authoritative_requirements(ctx: StepContext, files_after: dict[str, str]) -> list[str]:
+    """The texts a reviewer's expectation must be traceable to: issue, PRD, docstrings, README."""
+    wf = ctx.wf
+    prd = wf["data"].get("requirements", {})
+    texts = [wf["issue_title"], prose(wf["issue_body"]), *prd.get("acceptance_criteria", []),
+             *[f"{e['call']} {e['expected']}" for e in prd.get("expected_behavior", [])]]
+    for src in files_after.values():
+        try:
+            tree = ast.parse(src)
+        except SyntaxError:
+            continue
+        for node in [tree, *[n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))]]:
+            doc = ast.get_docstring(node)
+            if doc:
+                texts.append(doc)
+    try:
+        texts.append(ctx.workspace([]).read_text("README.md"))
+    except (FileNotFoundError, PermissionError, OSError):
+        pass
+    return texts
+
+
 def feedback(ctx: StepContext) -> dict:
     it = ctx.set_phase(IT.AGGREGATING)
     n = it["n"]
     wf = ctx.wf
     reviews = wf["data"]["review"]["reviews"]
-    agg = loop.aggregate(reviews, it["tests"], lambda src: run_probe(ctx, src, tag=f"confirm-{n}"))
+    files_after = wf["data"]["review"].get("files_after") or {}
+    changed_functions = {f["function"] for f in reviewers_mod.function_inventory(files_after)}
+    agg = loop.aggregate(reviews, it["tests"], lambda src: run_probe(ctx, src, tag=f"confirm-{n}"),
+                         requirements=authoritative_requirements(ctx, files_after),
+                         changed_functions=changed_functions or None)
     history = _previous_iterations(ctx, n)
     first = (history[0] if history else it)["started_at"]
     decision, reason = loop.assess_progress(
         history, {"n": n, "fingerprint": it["fingerprint"], "failure_signature": agg["signature"],
-                  "blocking_count": agg["blocking_count"]}, wf["budget"], wf["usage"], first)
-    status = {"pass": IT.PASSED, "revise": IT.REVISE, "stalled": IT.STALLED, "exhausted": IT.EXHAUSTED}[decision]
+                  "blocking_count": agg["blocking_count"], "unresolved_count": agg["unresolved_count"],
+                  "inspected": len(agg["inspected_reviews"]), "min_reviewers": ctx.settings.min_reviewers},
+        wf["budget"], wf["usage"], first)
+    status = {"pass": IT.PASSED, "revise": IT.REVISE, "stalled": IT.STALLED, "exhausted": IT.EXHAUSTED,
+              "unresolved": IT.UNRESOLVED}[decision]
     ctx.store.update_iteration(ctx.wf_id, n, status=status, feedback=agg, failure_signature=agg["signature"],
                                blocking_count=agg["blocking_count"], decision=decision, decision_reason=reason)
     ctx.evidence("feedback", f"Iteration {n}: aggregated feedback — {decision}",
                  loop.render_feedback(n, agg, decision, reason), iteration=n, decision=decision,
                  blocking=agg["blocking_count"])
     ctx.log(f"Iteration {n} decision: {decision} — {reason}", level="info" if decision in ("pass", "revise") else "warning")
-    if decision in ("stalled", "exhausted"):
+    if decision in ("stalled", "exhausted", "unresolved"):
         ctx.store.merge_data(ctx.wf_id, "escalation", {
             "iteration": n, "decision": decision, "reason": reason,
-            "open_blocking": [{"id": i["id"], "title": i["title"], "location": i["location"]}
-                              for i in agg["items"] if i["severity"] == "blocking"],
+            "open_blocking": [{"id": i["id"], "title": i["title"], "location": i["location"],
+                               "severity": i["severity"]}
+                              for i in agg["items"] if i["severity"] in ("blocking", "unresolved")],
             "recommended_action": "Review the iteration history, then fix manually, give the agent more context, "
                                   "or retry to grant one more iteration."})
         raise BlockedError(f"Escalated to a human after iteration {n}: {reason}")
     return {"iteration": n, "decision": decision, "reason": reason, "blocking_count": agg["blocking_count"],
+            "unresolved_count": agg["unresolved_count"], "inspected_reviews": agg["inspected_reviews"],
             "items": len(agg["items"]), "strategy": agg["strategy"]}
 
 
@@ -654,6 +686,16 @@ def quality_gate(ctx: StepContext) -> dict:
                                  f"{final['blocking_count']} unresolved blocking finding(s) after evidence confirmation"),
         "independent_reviews": (len(final_reviews) >= ctx.settings.min_reviewers,
                                 f"{len(final_reviews)} independent reviews completed in the final iteration"),
+        "reviews_inspected_change": (len((final.get("feedback") or {}).get("inspected_reviews", {})) >= ctx.settings.min_reviewers,
+                                     f"{len((final.get('feedback') or {}).get('inspected_reviews', {}))} review(s) did "
+                                     "observable work on the change (executed checks, located findings or a "
+                                     "deterministic technique)"),
+        "no_unresolved_evidence": ((final.get("feedback") or {}).get("unresolved_count", 0) == 0,
+                                   f"{(final.get('feedback') or {}).get('unresolved_count', 0)} finding(s) with "
+                                   "unsupported or conflicting evidence"),
+        "reviewed_commit_is_final": (final.get("commit") == head and not ctx.git.out(ctx.worktree, "status", "--porcelain"),
+                                     f"reviewed commit {(final.get('commit') or '')[:10]} vs final HEAD {head[:10]}, "
+                                     "worktree clean"),
         "budget": (len(its) <= budget.get("max_iterations", 99) and usage.get("cost_usd", 0) <= budget.get("max_cost_usd", 1e9),
                    f"{len(its)}/{budget.get('max_iterations')} iterations, ${usage.get('cost_usd', 0):.4f} of "
                    f"${budget.get('max_cost_usd', 0):.2f}"),

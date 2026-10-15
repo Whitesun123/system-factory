@@ -5,13 +5,14 @@ Everything here is pure (no I/O except through callables passed in), so the rule
 """
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import re
 import time
 from typing import Callable
 
-SEVERITY_RANK = {"blocking": 0, "major": 1, "minor": 2}
+SEVERITY_RANK = {"blocking": 0, "unresolved": 1, "major": 2, "minor": 3}
 
 # Rules whose presence means the previous patch is wrong (a regression or an integrity violation) and
 # should be discarded rather than built upon. Unresolved review probes and repeated solutions are not on
@@ -86,7 +87,7 @@ def parse_unified_diff(text: str) -> list[dict]:
 # ------------------------------------------------------------------ aggregation
 def _norm(f: dict, reviewer: str) -> dict:
     sev = f.get("severity", "major")
-    sev = sev if sev in SEVERITY_RANK else "major"
+    sev = sev if sev in ("blocking", "major", "minor") else "major"  # "unresolved" is assigned only internally
     return {"severity": sev, "rule": f.get("rule") or "review", "title": str(f.get("title", "")).strip()[:200],
             "detail": str(f.get("detail", ""))[:2000], "file": f.get("file"), "line": f.get("line"),
             "function": f.get("function"), "evidence": str(f.get("evidence", ""))[:3000],
@@ -113,69 +114,195 @@ def test_findings(tests: dict) -> list[dict]:
     return [_norm(f, "deterministic-tests") for f in out]
 
 
-def aggregate(reviews: list[dict], tests: dict, confirm_probe: Callable[[str], tuple[bool, str]]) -> dict:
-    """Merge reviewer + test findings into actionable, evidence-backed feedback items.
+TRUSTED_REVIEWERS = {"simulated-spec", "simulated-diff"}  # deterministic reviewers written by System Factory
 
-    Reviewer findings that carry an executable probe are re-executed against the current code:
-    a probe that *passes* means the claimed defect is not reproducible, so the finding is marked
-    unconfirmed and downgraded from blocking to major (this guards against hallucinated findings).
+_STOP = set("the a an and or to of in on for is are be by with as at it this that from must should will "
+            "returns return result results value values function when if than then".split())
+
+
+def _tokens(text: str) -> set[str]:
+    return {t for t in re.findall(r"[a-z0-9]+(?:\.[0-9]+)?", (text or "").lower()) if len(t) > 1 and t not in _STOP}
+
+
+def requirement_sentences(texts: list[str]) -> list[str]:
+    out = []
+    for t in texts:
+        for part in re.split(r"(?<=[.!?])\s+|\n+", t or ""):
+            part = part.strip(" -*#>`")
+            if len(part) > 3:
+                out.append(part)
+    return out
+
+
+def ground(claim: str, expected: str | None, sentences: list[str] | None) -> str | None:
+    """Return the authoritative sentence that justifies a reviewer's expectation, or None.
+
+    Grounded when (a) the expected value itself appears in an authoritative sentence (e.g. a documented example or
+    message), or (b) at least half (and at least 3) of the claim's content words appear in one sentence.
     """
+    if sentences is None:
+        return "grounding not applied"
+    raw = (expected or "").strip()
+    try:
+        value = ast.literal_eval(raw)
+    except (ValueError, SyntaxError):
+        value = raw
+    # Value grounding only for text results, and only as an exact quoted string or a whole sentence; numbers and
+    # substrings appear everywhere by coincidence and justify nothing.
+    if isinstance(value, str) and len(value) >= 4:
+        quoted = (f"'{value}'", f'"{value}"')
+        for s in sentences:
+            if any(q in s for q in quoted) or s.strip().rstrip(".!") == value.strip().rstrip(".!"):
+                return s
+    ct = _tokens(claim)
+    if not ct:
+        return None
+    best, score = None, 0.0
+    for s in sentences:
+        common = ct & _tokens(s)
+        r = len(common) / len(ct)
+        if len(common) >= 3 and r > score:
+            best, score = s, r
+    return best if score >= 0.5 else None
+
+
+def _probe_key(probe: str) -> tuple[str, str] | None:
+    """(normalised call, normalised expected) from a single-call doctest probe."""
+    lines = [ln for ln in probe.strip().splitlines() if ln.strip()]
+    calls = [ln[4:].strip() for ln in lines if ln.startswith(">>> ") and not ln[4:].lstrip().startswith(("from ", "import "))]
+    wants = [ln.strip() for ln in lines if not ln.startswith((">>>", "..."))]
+    if len(calls) != 1 or len(wants) != 1:
+        return None
+    return calls[0].replace(" ", ""), wants[0]
+
+
+def aggregate(reviews: list[dict], tests: dict, confirm_probe: Callable[[str], tuple[bool, str]],
+              requirements: list[str] | None = None, changed_functions: set[str] | None = None) -> dict:
+    """Merge reviewer + test findings into evidence-classified, actionable feedback items.
+
+    Evidence states for reviewer claims:
+      confirmed    executed failure whose expectation is grounded in a requirement or corroborated by another
+                   reviewer -> blocking
+      unsupported  executed failure, expectation not traceable to any requirement     -> unresolved
+      conflicting  reviewers expect different results for the same call               -> unresolved
+      unverified   claim without an executable probe, or probe passes / is broken     -> downgraded
+      invalid      check rejected by validation                                       -> recorded only
+      passed       executed and passing                                               -> recorded only
+    `requirements` are the authoritative texts (issue, acceptance criteria, docstrings, README); None disables
+    grounding (unit tests of other rules only).
+    """
+    sentences = requirement_sentences(requirements) if requirements is not None else None
     findings = test_findings(tests)
-    llm_reviewers = set()
-    checks_run = []
+    for f in findings:
+        f["evidence_state"] = "deterministic"
+    checks_run, inspected = [], {}
     for r in reviews:
         if r.get("verdict") == "error":
             continue
-        if not r.get("simulated", True):
-            llm_reviewers.add(r["reviewer"])
-        findings += [_norm(f, r["reviewer"]) for f in r.get("findings", [])]
-        # Evidence verification of reviewer-proposed specification checks: execute every valid one.
+        trusted = r["reviewer"] in TRUSTED_REVIEWERS
+        fs = [_norm(f, r["reviewer"]) for f in r.get("findings", [])]
+        findings += fs
+        valid_checks = 0
         for c in r.get("checks", []) or []:
             row = {"reviewer": r["reviewer"], "function": c.get("function"), "call": c.get("call"),
-                   "expected": c.get("expected"), "rule": c.get("rule"), "valid": bool(c.get("probe"))}
+                   "expected": c.get("expected"), "rule": c.get("rule"), "valid": bool(c.get("probe")),
+                   "probe": c.get("probe"), "file": c.get("file"), "invalid_reason": c.get("invalid_reason")}
             if row["valid"]:
+                valid_checks += 1
                 ok, output = confirm_probe(c["probe"])
                 row["outcome"] = classify_probe(ok, output)
                 got = re.search(r"Got:\s*\n\s*(.+)", output)
                 row["got"] = got.group(1).strip() if got else None
-                if row["outcome"] in ("mismatch", "exception"):
-                    f = _norm({"severity": "blocking", "rule": "reviewer-check", "file": c.get("file"),
-                               "function": c.get("function"), "probe": c["probe"],
-                               "title": f"Specification check failed: {c['call']} should be {c['expected']}",
-                               "detail": f"Executed against the patched code: returned {row['got'] or row['outcome']}. "
-                                         f"Rule: {c.get('rule', '')}",
-                               "evidence": output[-1200:],
-                               "suggestion": f"Make {c['call']} return {c['expected']}."}, r["reviewer"])
-                    f["confirmed"], f["probe_outcome"], f["prechecked"] = True, row["outcome"], True
-                    findings.append(f)
+                row["output"] = output[-1200:]
+                row["key"] = _probe_key(c["probe"])
             else:
                 row["outcome"] = "invalid"
             checks_run.append(row)
+        # A review counts as an inspection only if it did observable work on the changed code.
+        if trusted:
+            inspected[r["reviewer"]] = "deterministic technique"
+        elif valid_checks and (changed_functions is None or any(
+                row["function"] in changed_functions for row in checks_run if row["reviewer"] == r["reviewer"] and row["valid"])):
+            inspected[r["reviewer"]] = f"{valid_checks} valid check(s) executed"
+        elif any(f["file"] or f["function"] for f in fs):
+            inspected[r["reviewer"]] = "located findings"
+
+    # Cross-reviewer agreement and conflicts on identical calls.
+    by_key: dict[tuple, list[dict]] = {}
+    for row in checks_run:
+        if row.get("key"):
+            by_key.setdefault((row["function"], row["key"][0]), []).append(row)
+    for rows in by_key.values():
+        expectations = {row["key"][1] for row in rows}
+        for row in rows:
+            row["conflicting"] = len(expectations) > 1
+            row["corroborated_by"] = sorted({o["reviewer"] for o in rows if o is not row
+                                             and o["key"][1] == row["key"][1] and o["reviewer"] != row["reviewer"]})
+
+    for row in checks_run:
+        if row["outcome"] not in ("mismatch", "exception"):
+            row["evidence_state"] = {"pass": "passed", "invalid": "invalid"}.get(row["outcome"], "invalid")
+            continue
+        justification = ground(row.get("rule") or "", row.get("expected"), sentences)
+        row["grounding"] = justification
+        if row.get("conflicting"):
+            state, sev = "conflicting", "unresolved"
+        elif justification or row.get("corroborated_by"):
+            state, sev = "confirmed", "blocking"
+        else:
+            state, sev = "unsupported", "unresolved"
+        row["evidence_state"] = state
+        why = {"confirmed": f"Justified by: \"{(justification or '')[:160]}\"" if justification and justification != "grounding not applied"
+               else (f"Corroborated by {', '.join(row['corroborated_by'])}" if row.get("corroborated_by") else ""),
+               "conflicting": "Reviewers expect different results for this call; a human must decide which is right.",
+               "unsupported": "The expected value is not traceable to the issue, acceptance criteria or documentation."}[state]
+        f = _norm({"severity": "major", "rule": "reviewer-check", "file": row.get("file"), "function": row["function"],
+                   "probe": row["probe"], "title": f"Specification check failed: {row['call']} should be {row['expected']}",
+                   "detail": f"Executed against the patched code: returned {row['got'] or row['outcome']}. "
+                             f"Rule: {row.get('rule') or ''}. {why}",
+                   "evidence": row["output"], "suggestion": f"Make {row['call']} return {row['expected']}."
+                   if state == "confirmed" else "Confirm the intended behaviour against the requirements."},
+                  row["reviewer"])
+        f["severity"] = sev
+        f["confirmed"], f["probe_outcome"], f["prechecked"], f["evidence_state"] = state == "confirmed", row["outcome"], True, state
+        findings.append(f)
 
     for f in findings:
-        if f.get("prechecked"):
-            continue  # reviewer check already executed above
-        if f["probe"] and f["reviewer"] != "deterministic-tests":
+        if f.get("prechecked") or f["reviewer"] == "deterministic-tests":
+            continue
+        trusted = f["reviewer"] in TRUSTED_REVIEWERS
+        if f["probe"]:
             ok, output = confirm_probe(f["probe"])
             outcome = classify_probe(ok, output)
             f["probe_outcome"] = outcome
-            f["confirmed"] = outcome in ("mismatch", "exception")
-            if f["confirmed"] and f["severity"] != "blocking":
-                # evidence over labels: an executed probe that fails demonstrates a behavioural defect
-                f["detail"] += f" [upgraded to blocking: probe confirmed by execution; reviewer said {f['severity']}]"
-                f["reviewer_severity"], f["severity"] = f["severity"], "blocking"
-            if not f["confirmed"]:
+            if outcome in ("mismatch", "exception"):
+                key = _probe_key(f["probe"])
+                justification = "deterministic reviewer" if trusted else ground(
+                    f"{f['title']} {f['detail']}", key[1] if key else None, sentences)
+                if justification:
+                    f["confirmed"], f["evidence_state"] = True, "confirmed"
+                    if f["severity"] != "blocking":
+                        f["detail"] += f" [upgraded to blocking: probe confirmed by execution; reviewer said {f['severity']}]"
+                        f["reviewer_severity"], f["severity"] = f["severity"], "blocking"
+                else:
+                    f["confirmed"], f["evidence_state"] = False, "unsupported"
+                    f["detail"] += " [unresolved: probe fails, but its expectation is not traceable to any requirement]"
+                    f["severity"] = "unresolved"
+            else:
+                f["confirmed"], f["evidence_state"] = False, "unverified"
                 why = {"pass": "probe passes on current code", "invalid": "probe is not a valid check",
                        "probe-error": "probe itself errors (" + output.strip().splitlines()[-1][:120] + ")"
                        if output.strip() else "probe errored"}.get(outcome, outcome)
                 f["detail"] += f" [unconfirmed: {why}]"
                 if f["severity"] == "blocking":
                     f["severity"] = "major"
-        elif f["severity"] == "blocking" and f["reviewer"] in llm_reviewers:
+        elif f["severity"] == "blocking" and not trusted:
             # a model's claim is not proof: a blocking finding needs an executable probe that fails
-            f["confirmed"] = False
+            f["confirmed"], f["evidence_state"] = False, "unverified"
             f["detail"] += " [unverified: blocking finding without an executable probe]"
             f["severity"] = "major"
+        else:
+            f.setdefault("evidence_state", "deterministic" if trusted else "unverified")
 
     groups: dict[tuple, list[dict]] = {}
     for f in findings:
@@ -192,6 +319,7 @@ def aggregate(reviews: list[dict], tests: dict, confirm_probe: Callable[[str], t
                          "lines": sorted({f["line"] for f in fs if f["line"]})},
             "sources": sources, "corroborated": len(sources) > 1,
             "rules": sorted({f["rule"] for f in fs}),
+            "evidence_states": sorted({f.get("evidence_state", "unverified") for f in fs}),
             "probes": sorted({f["probe"] for f in fs if f["probe"] and f["severity"] == "blocking"
                               and f["confirmed"] is not False}),
             "suggestions": [f["suggestion"] for f in fs if f["suggestion"]],
@@ -202,6 +330,7 @@ def aggregate(reviews: list[dict], tests: dict, confirm_probe: Callable[[str], t
         item["id"] = f"F{k}"
 
     blocking = [i for i in items if i["severity"] == "blocking"]
+    unresolved = [i for i in items if i["severity"] == "unresolved"]
     signature = None
     if blocking:
         keys = sorted([i["location"]["file"] or "", i["location"]["where"],
@@ -216,7 +345,10 @@ def aggregate(reviews: list[dict], tests: dict, confirm_probe: Callable[[str], t
         for f in i["findings"]:
             if f["function"]:
                 functions.add(f["function"])
-    return {"items": items, "blocking_count": len(blocking), "signature": signature, "checks": checks_run,
+    for row in checks_run:
+        row.pop("output", None)
+    return {"items": items, "blocking_count": len(blocking), "unresolved_count": len(unresolved),
+            "signature": signature, "checks": checks_run, "inspected_reviews": inspected,
             "strategy": "restart_from_checkpoint" if restart else "build_on_previous",
             "probes": sorted({p for i in blocking for p in i["probes"]}),
             "focus": {"lines": {k: sorted(set(v)) for k, v in lines.items()}, "functions": sorted(functions)}}
@@ -257,6 +389,15 @@ def assess_progress(previous: list[dict], current: dict, budget: dict, usage: di
     now = now or time.time()
     n, blocking = current["n"], current["blocking_count"]
     if blocking == 0:
+        unresolved = current.get("unresolved_count", 0)
+        if unresolved:
+            return "unresolved", (f"Iteration {n}: no confirmed defect, but {unresolved} finding(s) have unsupported or "
+                                  "conflicting evidence; a human must decide instead of approving or blocking silently.")
+        inspected, needed = current.get("inspected"), current.get("min_reviewers")
+        if inspected is not None and needed and inspected < needed:
+            return "unresolved", (f"Iteration {n}: only {inspected} of the required {needed} reviews inspected the "
+                                  "change (no executed checks or located findings); an approval without inspection "
+                                  "does not count.")
         return "pass", f"Iteration {n}: no blocking findings and all deterministic checks are green."
     same = [p for p in previous if p.get("fingerprint") and p["fingerprint"] == current.get("fingerprint")]
     if same:

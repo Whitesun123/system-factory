@@ -35,7 +35,9 @@ def init_demo_repo(settings: Settings, *, force: bool = False) -> str:
                 f.write_bytes(data.replace(b"\r\n", b"\n"))
     git.run(repo, "init", "-q", "-b", "main")
     git.run(repo, "add", "-A")
-    git.run(repo, "commit", "-q", "-m", "Initial shopcart demo library (contains planted bugs)")
+    # Fixed dates: the same template always yields the same base commit SHA, on any machine.
+    fixed = {"GIT_AUTHOR_DATE": "2026-01-01T00:00:00+0000", "GIT_COMMITTER_DATE": "2026-01-01T00:00:00+0000"}
+    git.run(repo, "commit", "-q", "-m", "Initial shopcart demo library (contains planted bugs)", extra_env=fixed)
     return f"demo repo created at {repo} ({git.out(repo, 'rev-parse', '--short', 'HEAD')})"
 
 

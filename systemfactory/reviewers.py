@@ -354,35 +354,45 @@ def _safe_arg(node: ast.AST) -> bool:
     return False
 
 
-def check_to_probe(check: dict, inventory: list[dict]) -> str | None:
-    """Turn a reviewer check into a doctest probe, or None if it is not a safe call of a listed function."""
-    name = (check.get("function") or "").strip().removesuffix("()").split(".")[-1]
-    fn = next((f for f in inventory if f["function"] == name), None)
-    if fn is None:
-        return None
+def validate_check(check: dict, inventory: list[dict]) -> tuple[str | None, str | None]:
+    """Turn a reviewer check into a doctest probe. Returns (probe, None) or (None, reason it is invalid)."""
+    qualified = (check.get("function") or "").strip().removesuffix("()")
+    name = qualified.split(".")[-1]
+    module = qualified.rsplit(".", 1)[0] if "." in qualified else None
+    matches = [f for f in inventory if f["function"] == name and (module is None or f["module"] == module)]
+    if not matches:
+        return None, f"function '{qualified}' is not a top-level function of the changed files"
+    if len(matches) > 1:
+        return None, (f"function name '{name}' is ambiguous ({', '.join(f['module'] for f in matches)}); "
+                      "the check must qualify it with its module")
+    fn = matches[0]
     try:
         expr = ast.parse(check.get("call", "").strip(), mode="eval").body
-        if isinstance(expr, ast.Call) and isinstance(expr.func, ast.Attribute) and expr.func.attr == name:
-            expr.func = ast.Name(id=name, ctx=ast.Load())  # module.function(...) -> function(...)
-        if not (isinstance(expr, ast.Call) and isinstance(expr.func, ast.Name) and expr.func.id == name):
-            return None
-        if not all(_safe_arg(a) for a in [*expr.args, *(k.value for k in expr.keywords)]):
-            return None
     except SyntaxError:
-        return None
+        return None, "call is not a Python expression"
+    if isinstance(expr, ast.Call) and isinstance(expr.func, ast.Attribute) and expr.func.attr == name:
+        expr.func = ast.Name(id=name, ctx=ast.Load())  # module.function(...) -> function(...)
+    if not (isinstance(expr, ast.Call) and isinstance(expr.func, ast.Name) and expr.func.id == name):
+        return None, f"call is not a direct call of {name}()"
+    if not all(_safe_arg(a) for a in [*expr.args, *(k.value for k in expr.keywords)]):
+        return None, "arguments must be literals or pure builtin constructors"
     expected = (check.get("expected") or "").strip()
     if not expected:
-        return None
+        return None, "no expected value"
     try:
         value = ast.literal_eval(expected)
     except (ValueError, SyntaxError):
         value = expected  # an unquoted text result: compare as a string
     # Always emit the single-line repr of the value: a multi-line literal could otherwise smuggle extra
     # `>>> ...` lines (i.e. arbitrary code) into the doctest.
-    return f">>> from {fn['module']} import {name}\n>>> {ast.unparse(expr)}\n{repr(value)}\n"
+    return f">>> from {fn['module']} import {name}\n>>> {ast.unparse(expr)}\n{repr(value)}\n", None
 
 
-TRUSTED_REVIEWERS = {"simulated-spec", "simulated-diff"}  # deterministic, written by System Factory
+def check_to_probe(check: dict, inventory: list[dict]) -> str | None:
+    return validate_check(check, inventory)[0]
+
+
+from .loop import TRUSTED_REVIEWERS  # noqa: E402  (deterministic reviewers written by System Factory)
 FORBIDDEN_NAMES = {"open", "exec", "eval", "compile", "getattr", "setattr", "delattr", "globals", "locals", "vars",
                    "input", "breakpoint", "exit", "quit", "help", "memoryview", "classmethod", "staticmethod", "type"}
 FORBIDDEN_NODES = (ast.Import, ast.Lambda, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.With,
@@ -509,10 +519,12 @@ class OllamaReviewer:
                              "rule": f"llm-{self.name}"})
         checks = []
         for c in data.get("checks", []):
-            probe = check_to_probe(c, inventory)
-            checks.append({"function": c.get("function"), "call": c.get("call"), "expected": c.get("expected"),
+            probe, problem = validate_check(c, inventory)
+            name = (c.get("function") or "").removesuffix("()").split(".")[-1]
+            checks.append({"function": name, "call": c.get("call"), "expected": c.get("expected"),
                            "rule": (c.get("rule") or "")[:300], "probe": probe, "valid": probe is not None,
-                           "file": next((f["file"] for f in inventory if f["function"] == c.get("function")), None)})
+                           "invalid_reason": problem,
+                           "file": next((f["file"] for f in inventory if f["function"] == name), None)})
         return {"verdict": data["verdict"], "summary": data.get("summary", ""), "findings": findings,
                 "checks": checks, "analysis": data.get("analysis", "")[:4000],
                 "input_tokens": res.input_tokens, "output_tokens": res.output_tokens, "cost_usd": 0.0,

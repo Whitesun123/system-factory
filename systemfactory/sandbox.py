@@ -161,10 +161,10 @@ class Git:
         self.env = scrubbed_env(gitconfig=gitconfig)
         self.timeout = timeout
 
-    def run(self, cwd: Path | str, *args: str, check: bool = True) -> CommandResult:
+    def run(self, cwd: Path | str, *args: str, check: bool = True, extra_env: dict | None = None) -> CommandResult:
         argv = ["git", "-c", "core.autocrlf=false", "-c", f"user.name={AGENT_NAME}",
                 "-c", f"user.email={AGENT_EMAIL}", "-c", "commit.gpgsign=false", *args]
-        res = run_command(argv, cwd, timeout=self.timeout, env=self.env)
+        res = run_command(argv, cwd, timeout=self.timeout, env={**self.env, **(extra_env or {})})
         if check and not res.ok:
             raise GitError(f"git {' '.join(args)} failed ({res.exit_code}): {res.output.strip()[-800:]}")
         return res

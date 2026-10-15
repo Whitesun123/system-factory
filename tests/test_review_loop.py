@@ -209,7 +209,8 @@ def test_reviewers_receive_independent_copies(orch, monkeypatch):
 
     monkeypatch.setitem(reviewers.FACTORIES, "mutator", Mutator)
     monkeypatch.setitem(reviewers.FACTORIES, "observer", Observer)
-    wf_id = submit_sample(orch, "shipping", options={"reviewers": ["mutator", "observer"]})
+    # the deterministic reviewers inspect the change; the two doubles only test input isolation
+    wf_id = submit_sample(orch, "shipping", options={"reviewers": ["simulated-spec", "simulated-diff", "mutator", "observer"]})
     run_all(orch)
     assert seen["repro"] is True and seen["diff"] != "tampered"
     assert orch.store.get_workflow(wf_id)["state"] == WF.AWAITING_APPROVAL

@@ -7,6 +7,7 @@ Nothing in here is AI; it is plain, testable control flow.
 from __future__ import annotations
 
 import os
+import subprocess
 import threading
 import time
 import traceback
@@ -20,6 +21,24 @@ from .roles import ROLES
 from .sandbox import Cancelled, Git, StepTimeout
 from .statemachine import IT, ITERATION_OPEN, LOOP_STEPS, PIPELINES, STEP, TERMINAL, WF, IllegalTransition
 from .store import Store
+
+
+def source_provenance() -> dict:
+    """Which System Factory code ran this workflow, recorded at submission time (not at export time)."""
+    from . import __version__
+    from .config import PROJECT_ROOT
+
+    def git(*args: str) -> str | None:
+        try:
+            r = subprocess.run(["git", *args], cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=20)
+            return r.stdout.strip() if r.returncode == 0 else None
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+    status = git("status", "--porcelain", "--untracked-files=no")
+    return {"system_factory_version": __version__, "source_revision": git("rev-parse", "HEAD"),
+            "source_dirty": bool(status) if status is not None else None,
+            "source_modified_files": status.splitlines()[:50] if status else [],
+            "recorded_at": time.time()}
 
 
 class Orchestrator:
@@ -44,6 +63,7 @@ class Orchestrator:
         wf_id = self.store.create_workflow(title.strip(), body, str(repo), source=source, options=options or {},
                                            budget={**self.settings.default_budget, **(budget or {})})
         self.store.add_steps(wf_id, [PIPELINES["bug"][0]])  # triage decides the rest
+        self.store.merge_data(wf_id, "provenance", source_provenance())
         return wf_id
 
     # ------------------------------------------------------------------ execution
