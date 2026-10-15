@@ -1,0 +1,100 @@
+{
+  "system_factory": {
+    "version": "0.1.0",
+    "run": {
+      "system_factory_version": "0.1.0",
+      "source_revision": "1cb01485f04e9b60457f12af3c8d116d43fa1622",
+      "source_dirty": false,
+      "source_modified_files": [],
+      "recorded_at": 1792097740.0319095
+    },
+    "export": {
+      "source_revision": "1cb01485f04e9b60457f12af3c8d116d43fa1622",
+      "source_dirty": false
+    }
+  },
+  "target_repository": {
+    "note": "SHAs of the generated demo repository under <DATA_DIR>/repos; run-local identifiers, not System Factory commits",
+    "base_commit": "9538aec9ecd9fe940fb033954b4f95a5104ee72e",
+    "final_commit": "0c83b4ff3e268d3287d8d204e804ccfdc3a3e8fd",
+    "branch": "sf/wf-3"
+  },
+  "exported_at": "2026-10-15T22:56:50+0200",
+  "environment": {
+    "python": "3.13.12",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "gpu": "NVIDIA GeForce RTX 5080, 16303 MiB, 617.14",
+    "ollama": null
+  },
+  "workflow": {
+    "id": 3,
+    "issue_id": 3,
+    "title": "Bulk discount not applied when ordering exactly 10 units",
+    "source": "sample:bulk",
+    "kind": "bug",
+    "state": "awaiting_approval",
+    "runtime": "simulated",
+    "options": {
+      "runtime": "simulated",
+      "execution": "docker",
+      "require_isolation": true
+    },
+    "budget": {
+      "max_wall_seconds": 900,
+      "max_candidate_evals": 400,
+      "max_test_runs": 800,
+      "max_iterations": 4,
+      "max_loop_seconds": 600,
+      "max_llm_tokens": 600000,
+      "max_cost_usd": 1.0,
+      "stall_window": 2
+    },
+    "usage": {
+      "candidate_evals": 3,
+      "test_runs": 23,
+      "llm_tokens": 0,
+      "cost_usd": 0.0
+    },
+    "branch": "sf/wf-3",
+    "base_commit": "9538aec9ecd9fe940fb033954b4f95a5104ee72e",
+    "final_commit": "0c83b4ff3e268d3287d8d204e804ccfdc3a3e8fd",
+    "created_at": 1792097739.9502559,
+    "started_at": 1792097766.0427024,
+    "finished_at": 1792097793.7674718
+  },
+  "execution_modes": [
+    "simulated"
+  ],
+  "models": {},
+  "reviewer_diversity": {
+    "reviewers": 2,
+    "real_model_reviewers": 0,
+    "real_providers": [],
+    "real_models": [],
+    "real_provider_diversity": false,
+    "label": "SIMULATED: no real models; reviewers are independent by technique, not by model diversity"
+  },
+  "iterations": 2,
+  "termination_reason": "quality gate SUCCESS; waiting for human approval",
+  "quality_gate": "SUCCESS",
+  "totals": {
+    "llm_calls": 0,
+    "llm_calls_ok": 0,
+    "llm_calls_failed": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "inference_seconds": 0,
+    "tool_calls": 0,
+    "test_runs": 10,
+    "automation_seconds": 27.72
+  },
+  "reproduce": [
+    "python -m systemfactory init-demo",
+    "python -m systemfactory submit --sample bulk --runtime simulated",
+    "python -m systemfactory run",
+    "python -m systemfactory show 3",
+    "python -m systemfactory export 3",
+    "git -C <DATA_DIR>/repos/shopcart log --oneline 9538aec9ec..sf/wf-3"
+  ],
+  "honesty": "Token counts are copied from the runtime's responses; nothing is estimated. Simulated components are labelled 'simulated'. Different models on one runtime are one provider."
+}

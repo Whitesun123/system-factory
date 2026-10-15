@@ -2,7 +2,7 @@
   "status": "SUCCESS",
   "gate": {
     "status": "SUCCESS",
-    "commit": "de861a759c341fa2c90b9d0a43904e46dfae6de1",
+    "commit": "6bf8978e3c961d842b57dff356e0fe3a23574a77",
     "iterations": 2,
     "checks": {
       "repro_fails_on_base": {
@@ -11,7 +11,7 @@
       },
       "repro_passes": {
         "ok": true,
-        "note": "reproduction test re-run on de861a759c: 1 passed in 0.01s"
+        "note": "reproduction test re-run on 6bf8978e3c: 1 passed in 0.01s"
       },
       "suite_passes": {
         "ok": true,
@@ -41,6 +41,18 @@
         "ok": true,
         "note": "2 independent reviews completed in the final iteration"
       },
+      "reviews_inspected_change": {
+        "ok": true,
+        "note": "2 review(s) did observable work on the change (executed checks, located findings or a deterministic technique)"
+      },
+      "no_unresolved_evidence": {
+        "ok": true,
+        "note": "0 finding(s) with unsupported or conflicting evidence"
+      },
+      "reviewed_commit_is_final": {
+        "ok": true,
+        "note": "reviewed commit 6bf8978e3c vs final HEAD 6bf8978e3c, worktree clean"
+      },
       "budget": {
         "ok": true,
         "note": "2/4 iterations, $0.0000 of $1.00"
@@ -57,7 +69,7 @@
         "criterion": "The same test passes after the change",
         "check": "repro_passes",
         "ok": true,
-        "note": "reproduction test re-run on de861a759c: 1 passed in 0.01s"
+        "note": "reproduction test re-run on 6bf8978e3c: 1 passed in 0.01s"
       },
       {
         "criterion": "The full existing test suite still passes",
@@ -93,7 +105,7 @@
       "label": "SIMULATED: no real models; reviewers are independent by technique, not by model diversity"
     }
   },
-  "gate_report": "Checks:\n[PASS] repro_fails_on_base: reproduction test failed on the base commit\n[PASS] repro_passes: reproduction test re-run on de861a759c: 1 passed in 0.01s\n[PASS] suite_passes: full suite re-run: 18 passed in 0.03s\n[PASS] review_probes: 1/1 probes from review feedback pass\n[PASS] scope: changed files: shopcart/cart.py\n[PASS] security: 0 scanner finding(s), none high\n[PASS] loop_passed: final iteration 2 decision: pass\n[PASS] no_blocking_findings: 0 unresolved blocking finding(s) after evidence confirmation\n[PASS] independent_reviews: 2 independent reviews completed in the final iteration\n[PASS] budget: 2/4 iterations, $0.0000 of $1.00\n\nAcceptance criteria:\n[PASS] A reproduction test derived from the issue example fails on the base commit — reproduction test failed on the base commit\n[PASS] The same test passes after the change — reproduction test re-run on de861a759c: 1 passed in 0.01s\n[PASS] The full existing test suite still passes — full suite re-run: 18 passed in 0.03s\n[PASS] Only the source files named in the plan are modified; tests are not modified by the coding agent — changed files: shopcart/cart.py\n[PASS] No security findings of high severity in the diff — 0 scanner finding(s), none high\n[PASS] A human approves the change before it is merged (System Factory never merges) — enforced by the approval gate\n\nQuality gate: SUCCESS. Final decision belongs to a human approver; nothing is merged.",
+  "gate_report": "Checks:\n[PASS] repro_fails_on_base: reproduction test failed on the base commit\n[PASS] repro_passes: reproduction test re-run on 6bf8978e3c: 1 passed in 0.01s\n[PASS] suite_passes: full suite re-run: 18 passed in 0.03s\n[PASS] review_probes: 1/1 probes from review feedback pass\n[PASS] scope: changed files: shopcart/cart.py\n[PASS] security: 0 scanner finding(s), none high\n[PASS] loop_passed: final iteration 2 decision: pass\n[PASS] no_blocking_findings: 0 unresolved blocking finding(s) after evidence confirmation\n[PASS] independent_reviews: 2 independent reviews completed in the final iteration\n[PASS] reviews_inspected_change: 2 review(s) did observable work on the change (executed checks, located findings or a deterministic technique)\n[PASS] no_unresolved_evidence: 0 finding(s) with unsupported or conflicting evidence\n[PASS] reviewed_commit_is_final: reviewed commit 6bf8978e3c vs final HEAD 6bf8978e3c, worktree clean\n[PASS] budget: 2/4 iterations, $0.0000 of $1.00\n\nAcceptance criteria:\n[PASS] A reproduction test derived from the issue example fails on the base commit — reproduction test failed on the base commit\n[PASS] The same test passes after the change — reproduction test re-run on 6bf8978e3c: 1 passed in 0.01s\n[PASS] The full existing test suite still passes — full suite re-run: 18 passed in 0.03s\n[PASS] Only the source files named in the plan are modified; tests are not modified by the coding agent — changed files: shopcart/cart.py\n[PASS] No security findings of high severity in the diff — 0 scanner finding(s), none high\n[PASS] A human approves the change before it is merged (System Factory never merges) — enforced by the approval gate\n\nQuality gate: SUCCESS. Final decision belongs to a human approver; nothing is merged.",
   "escalation": null,
   "approvals": [],
   "final_state": "awaiting_approval",

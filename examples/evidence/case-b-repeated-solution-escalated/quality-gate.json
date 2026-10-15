@@ -14,7 +14,8 @@
           "file": null,
           "where": "general",
           "lines": []
-        }
+        },
+        "severity": "blocking"
       },
       {
         "id": "F2",
@@ -26,7 +27,8 @@
             47,
             57
           ]
-        }
+        },
+        "severity": "blocking"
       }
     ],
     "recommended_action": "Review the iteration history, then fix manually, give the agent more context, or retry to grant one more iteration."

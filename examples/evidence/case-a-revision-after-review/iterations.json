@@ -2,8 +2,8 @@
   {
     "n": 1,
     "status": "revise",
-    "base": "c96930ffc6c020c7527498594976a66a12b476c1",
-    "commit": "0efcbda671bc2871897e92179d3ebad2d3aba186",
+    "base": "e6d132b31fa96b1492ae89586e835484fa372f66",
+    "commit": "8d13ec7d522849533b6b706a86c7b2a07cf0a048",
     "fingerprint": "46f1a5a37cfcd72f",
     "patch": {
       "file": "shopcart/cart.py",
@@ -11,7 +11,7 @@
       "tier": 1,
       "coder": "simulated-repair",
       "strategy": "fresh",
-      "base": "c96930ffc6c020c7527498594976a66a12b476c1",
+      "base": "e6d132b31fa96b1492ae89586e835484fa372f66",
       "addressed": [],
       "required_probes": 0,
       "candidates_evaluated": 2,
@@ -21,14 +21,14 @@
     "decision_reason": "Iteration 1: 1 blocking finding(s); sending feedback to the coding agent.",
     "failure_signature": "068d6d75d031",
     "blocking_count": 1,
-    "started_at": 1792087338.850167,
-    "finished_at": 1792087344.6631784,
+    "started_at": 1792097742.9108367,
+    "finished_at": 1792097747.2535846,
     "tests": {
       "iteration": 1,
-      "commit": "0efcbda671bc2871897e92179d3ebad2d3aba186",
+      "commit": "8d13ec7d522849533b6b706a86c7b2a07cf0a048",
       "repro_passed": true,
       "suite_passed": true,
-      "repro_summary": "1 passed in 0.02s",
+      "repro_summary": "1 passed in 0.01s",
       "suite_summary": "18 passed in 0.03s",
       "probes": [],
       "probes_passed": true,
@@ -66,6 +66,10 @@
             "documented-behaviour",
             "inconsistent-boundary"
           ],
+          "evidence_states": [
+            "confirmed",
+            "deterministic"
+          ],
           "probes": [
             ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n"
           ],
@@ -87,7 +91,8 @@
               "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n",
               "reviewer": "simulated-spec",
               "confirmed": true,
-              "probe_outcome": "mismatch"
+              "probe_outcome": "mismatch",
+              "evidence_state": "confirmed"
             },
             {
               "severity": "major",
@@ -101,15 +106,21 @@
               "suggestion": "Check whether line 57 needs the same `>` -> `>=` change.",
               "probe": null,
               "reviewer": "simulated-diff",
-              "confirmed": null
+              "confirmed": null,
+              "evidence_state": "deterministic"
             }
           ],
           "id": "F1"
         }
       ],
       "blocking_count": 1,
+      "unresolved_count": 0,
       "signature": "068d6d75d031",
       "checks": [],
+      "inspected_reviews": {
+        "simulated-spec": "deterministic technique",
+        "simulated-diff": "deterministic technique"
+      },
       "strategy": "build_on_previous",
       "probes": [
         ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n"
@@ -132,8 +143,8 @@
   {
     "n": 2,
     "status": "passed",
-    "base": "0efcbda671bc2871897e92179d3ebad2d3aba186",
-    "commit": "de861a759c341fa2c90b9d0a43904e46dfae6de1",
+    "base": "8d13ec7d522849533b6b706a86c7b2a07cf0a048",
+    "commit": "6bf8978e3c961d842b57dff356e0fe3a23574a77",
     "fingerprint": "36826813d632e6b0",
     "patch": {
       "file": "shopcart/cart.py",
@@ -141,7 +152,7 @@
       "tier": 1,
       "coder": "simulated-repair",
       "strategy": "build_on_previous",
-      "base": "0efcbda671bc2871897e92179d3ebad2d3aba186",
+      "base": "8d13ec7d522849533b6b706a86c7b2a07cf0a048",
       "addressed": [
         "F1"
       ],
@@ -153,15 +164,15 @@
     "decision_reason": "Iteration 2: no blocking findings and all deterministic checks are green.",
     "failure_signature": null,
     "blocking_count": 0,
-    "started_at": 1792087344.8199053,
-    "finished_at": 1792087350.8416727,
+    "started_at": 1792097747.3878062,
+    "finished_at": 1792097751.9775622,
     "tests": {
       "iteration": 2,
-      "commit": "de861a759c341fa2c90b9d0a43904e46dfae6de1",
+      "commit": "6bf8978e3c961d842b57dff356e0fe3a23574a77",
       "repro_passed": true,
       "suite_passed": true,
       "repro_summary": "1 passed in 0.01s",
-      "suite_summary": "18 passed in 0.04s",
+      "suite_summary": "18 passed in 0.03s",
       "probes": [
         {
           "id": "P-d828a288",
@@ -186,8 +197,13 @@
     "feedback": {
       "items": [],
       "blocking_count": 0,
+      "unresolved_count": 0,
       "signature": null,
       "checks": [],
+      "inspected_reviews": {
+        "simulated-spec": "deterministic technique",
+        "simulated-diff": "deterministic technique"
+      },
       "strategy": "build_on_previous",
       "probes": [],
       "focus": {

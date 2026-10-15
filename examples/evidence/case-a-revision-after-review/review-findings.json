@@ -27,7 +27,7 @@
     "checks_executed": [],
     "input_tokens": 0,
     "output_tokens": 0,
-    "seconds": 1.06,
+    "seconds": 0.758,
     "error": null,
     "llm_call_id": null
   },
@@ -76,7 +76,7 @@
     "checks_executed": [],
     "input_tokens": 0,
     "output_tokens": 0,
-    "seconds": 1.055,
+    "seconds": 0.775,
     "error": null,
     "llm_call_id": null
   },

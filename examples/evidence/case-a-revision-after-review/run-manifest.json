@@ -1,10 +1,25 @@
 {
   "system_factory": {
     "version": "0.1.0",
-    "git_revision": "e9c444ce1b28088921b37173803203c0eb870767",
-    "git_dirty": true
+    "run": {
+      "system_factory_version": "0.1.0",
+      "source_revision": "1cb01485f04e9b60457f12af3c8d116d43fa1622",
+      "source_dirty": false,
+      "source_modified_files": [],
+      "recorded_at": 1792097739.3971474
+    },
+    "export": {
+      "source_revision": "1cb01485f04e9b60457f12af3c8d116d43fa1622",
+      "source_dirty": false
+    }
   },
-  "exported_at": "2026-10-15T20:02:59+0200",
+  "target_repository": {
+    "note": "SHAs of the generated demo repository under <DATA_DIR>/repos; run-local identifiers, not System Factory commits",
+    "base_commit": "9538aec9ecd9fe940fb033954b4f95a5104ee72e",
+    "final_commit": "6bf8978e3c961d842b57dff356e0fe3a23574a77",
+    "branch": "sf/wf-1"
+  },
+  "exported_at": "2026-10-15T22:56:48+0200",
   "environment": {
     "python": "3.13.12",
     "platform": "Windows-11-10.0.26200-SP0",
@@ -41,11 +56,11 @@
       "cost_usd": 0.0
     },
     "branch": "sf/wf-1",
-    "base_commit": "e814c54d435ee0a1e3e07ebb1a7a677dec77e541",
-    "final_commit": "de861a759c341fa2c90b9d0a43904e46dfae6de1",
-    "created_at": 1792087335.1249535,
-    "started_at": 1792087335.8880932,
-    "finished_at": 1792087353.5341253
+    "base_commit": "9538aec9ecd9fe940fb033954b4f95a5104ee72e",
+    "final_commit": "6bf8978e3c961d842b57dff356e0fe3a23574a77",
+    "created_at": 1792097739.3086214,
+    "started_at": 1792097740.25047,
+    "finished_at": 1792097753.9328847
   },
   "execution_modes": [
     "simulated"
@@ -71,7 +86,7 @@
     "inference_seconds": 0,
     "tool_calls": 0,
     "test_runs": 10,
-    "automation_seconds": 17.65
+    "automation_seconds": 13.68
   },
   "reproduce": [
     "python -m systemfactory init-demo",
@@ -79,7 +94,7 @@
     "python -m systemfactory run",
     "python -m systemfactory show 1",
     "python -m systemfactory export 1",
-    "git -C <DATA_DIR>/repos/shopcart log --oneline e814c54d43..sf/wf-1"
+    "git -C <DATA_DIR>/repos/shopcart log --oneline 9538aec9ec..sf/wf-1"
   ],
   "honesty": "Token counts are copied from the runtime's responses; nothing is estimated. Simulated components are labelled 'simulated'. Different models on one runtime are one provider."
 }

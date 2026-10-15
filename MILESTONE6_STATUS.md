@@ -41,3 +41,24 @@ command or CI run), and what remains open. Nothing here is a plan presented as a
   reason. Full offline suite: **83 passed, 1 skipped**.
 - Cost measured: a deterministic shipping workflow takes 14.6 s on Docker; each container command takes about 1 s.
 - Open: Windows CI runners have no Linux Docker daemon, so container tests run only in the Ubuntu job.
+
+## M6.2: Evidence integrity and hardened review evidence (implemented, verified locally)
+
+- **Root cause of the stale manifests:** `evidence.collect()` stamped the System Factory revision and dirty flag at
+  *export* time. The committed examples were exported while the project was at `e9c444c` with uncommitted 5.1 changes,
+  so `git_dirty: true` was accurate, and the SHA became unreachable after the history cleanup.
+- **Fix:** provenance (`source_revision`, `source_dirty`, modified files) is recorded at submission. Manifests separate
+  `system_factory.run` from `system_factory.export` and label the demo repository's SHAs as run-local
+  (`target_repository`). The demo base commit is deterministic (fixed dates), so any machine produces the same base SHA.
+- **Regenerated evidence:** the three packages in `examples/evidence/` were produced and exported from a fresh clone of
+  `1cb0148` (run and export both clean). The first attempt recorded `export.source_dirty: true` because I had deleted
+  tracked files in the clone before exporting; that was true, so it was re-exported correctly instead of being edited.
+- **Release check:** `tests/test_evidence_integrity.py` fails when a package's run revision is missing, not in the
+  history of HEAD, or dirty, or when a package is incomplete or unsanitized. It failed on the old examples, as intended.
+- **Evidence states:** confirmed (grounded in a requirement, or corroborated by another reviewer), unsupported,
+  conflicting, unverified, invalid, passed. Unsupported or conflicting evidence, and approvals without inspection, give an
+  explicit `unresolved` decision that escalates. Value grounding needs an exact quoted string or a whole sentence; a
+  regression test covers substring and number coincidences, a weakness found while testing.
+- **Gate additions:** the reviewed commit must be the final HEAD with a clean worktree; enough reviews must have
+  inspected the change; there must be no unresolved evidence.
+- Tests: `tests/test_evidence_states.py` (15) and `tests/test_evidence_integrity.py` (7).

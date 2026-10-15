@@ -6,16 +6,17 @@
     "step": "reproduce",
     "purpose": "suite",
     "command": "python -m pytest -q -p no:cacheprovider ",
-    "commit_sha": "e814c54d435ee0a1e3e07ebb1a7a677dec77e541",
+    "commit_sha": "9538aec9ecd9fe940fb033954b4f95a5104ee72e",
     "exit_code": 0,
     "timed_out": false,
     "passed": 17,
     "failed": 0,
     "errors": 0,
     "summary": "17 passed in 0.03s",
-    "seconds": 0.844,
+    "seconds": 0.617,
     "output_tail": ".................                                                        [100%]\n17 passed in 0.03s\n",
-    "created_at": 1792087355.3549192
+    "created_at": 1792097755.3491912,
+    "backend": "local (process)"
   },
   {
     "id": 12,
@@ -24,16 +25,17 @@
     "step": "reproduce",
     "purpose": "tests/test_issue_2.py",
     "command": "python -m pytest -q -p no:cacheprovider tests/test_issue_2.py",
-    "commit_sha": "e814c54d435ee0a1e3e07ebb1a7a677dec77e541",
+    "commit_sha": "9538aec9ecd9fe940fb033954b4f95a5104ee72e",
     "exit_code": 1,
     "timed_out": false,
     "passed": 0,
     "failed": 1,
     "errors": 0,
-    "summary": "1 failed in 0.15s",
-    "seconds": 0.896,
-    "output_tail": "F                                                                        [100%]\n================================== FAILURES ===================================\n__________________________ test_issue_2_reproduction __________________________\n\n    def test_issue_2_reproduction():\n        result, output = run_example()\n>       assert result.failed == 0, output\nE       AssertionError: **********************************************************************\nE         File \"issue #2\", line 2, in issue_2\nE         Failed example:\nE             bulk_discount_percent(10)\nE         Expected:\nE             5.0\nE         Got:\nE             0.0\nE         \nE       assert 1 == 0\nE        +  where 1 = TestResults(failed=1, attempted=2).failed\n\ntests\\test_issue_2.py:23: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_issue_2.py::test_issue_2_reproduction - AssertionError: ***...\n1 failed in 0.15s\n",
-    "created_at": 1792087356.3268082
+    "summary": "1 failed in 0.14s",
+    "seconds": 0.725,
+    "output_tail": "F                                                                        [100%]\n================================== FAILURES ===================================\n__________________________ test_issue_2_reproduction __________________________\n\n    def test_issue_2_reproduction():\n        result, output = run_example()\n>       assert result.failed == 0, output\nE       AssertionError: **********************************************************************\nE         File \"issue #2\", line 2, in issue_2\nE         Failed example:\nE             bulk_discount_percent(10)\nE         Expected:\nE             5.0\nE         Got:\nE             0.0\nE         \nE       assert 1 == 0\nE        +  where 1 = TestResults(failed=1, attempted=2).failed\n\ntests\\test_issue_2.py:23: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_issue_2.py::test_issue_2_reproduction - AssertionError: ***...\n1 failed in 0.14s\n",
+    "created_at": 1792097756.1360116,
+    "backend": "local (process)"
   },
   {
     "id": 13,
@@ -42,16 +44,17 @@
     "step": "coding",
     "purpose": "suite",
     "command": "python -m pytest -q -p no:cacheprovider ",
-    "commit_sha": "022343d766fd7ec94a8a6f735e00345c0d1d05f9",
+    "commit_sha": "a58f19894d13393d93b9448b9b0d62511e418281",
     "exit_code": 0,
     "timed_out": false,
     "passed": 18,
     "failed": 0,
     "errors": 0,
     "summary": "18 passed in 0.03s",
-    "seconds": 0.757,
+    "seconds": 0.657,
     "output_tail": "..................                                                       [100%]\n18 passed in 0.03s\n",
-    "created_at": 1792087358.2464838
+    "created_at": 1792097757.7098777,
+    "backend": "local (process)"
   },
   {
     "id": 14,
@@ -60,16 +63,17 @@
     "step": "testing",
     "purpose": "tests/test_issue_2.py",
     "command": "python -m pytest -q -p no:cacheprovider tests/test_issue_2.py",
-    "commit_sha": "994f475b2d7c557f1bbc1b453cb16406ae4fa8a5",
+    "commit_sha": "1f22695fdeed07a2687fa6a82975e3c2989310e5",
     "exit_code": 0,
     "timed_out": false,
     "passed": 1,
     "failed": 0,
     "errors": 0,
     "summary": "1 passed in 0.01s",
-    "seconds": 0.739,
+    "seconds": 0.596,
     "output_tail": ".                                                                        [100%]\n1 passed in 0.01s\n",
-    "created_at": 1792087359.478404
+    "created_at": 1792097758.7149034,
+    "backend": "local (process)"
   },
   {
     "id": 15,
@@ -78,16 +82,17 @@
     "step": "testing",
     "purpose": "suite",
     "command": "python -m pytest -q -p no:cacheprovider ",
-    "commit_sha": "994f475b2d7c557f1bbc1b453cb16406ae4fa8a5",
+    "commit_sha": "1f22695fdeed07a2687fa6a82975e3c2989310e5",
     "exit_code": 0,
     "timed_out": false,
     "passed": 18,
     "failed": 0,
     "errors": 0,
     "summary": "18 passed in 0.03s",
-    "seconds": 0.756,
+    "seconds": 0.618,
     "output_tail": "..................                                                       [100%]\n18 passed in 0.03s\n",
-    "created_at": 1792087360.3068936
+    "created_at": 1792097759.3913608,
+    "backend": "local (process)"
   },
   {
     "id": 16,
@@ -96,16 +101,17 @@
     "step": "coding",
     "purpose": "suite",
     "command": "python -m pytest -q -p no:cacheprovider ",
-    "commit_sha": "022343d766fd7ec94a8a6f735e00345c0d1d05f9",
+    "commit_sha": "a58f19894d13393d93b9448b9b0d62511e418281",
     "exit_code": 0,
     "timed_out": false,
     "passed": 18,
     "failed": 0,
     "errors": 0,
     "summary": "18 passed in 0.03s",
-    "seconds": 0.822,
+    "seconds": 0.618,
     "output_tail": "..................                                                       [100%]\n18 passed in 0.03s\n",
-    "created_at": 1792087363.949793
+    "created_at": 1792097762.3052344,
+    "backend": "local (process)"
   },
   {
     "id": 17,
@@ -114,16 +120,17 @@
     "step": "testing",
     "purpose": "tests/test_issue_2.py",
     "command": "python -m pytest -q -p no:cacheprovider tests/test_issue_2.py",
-    "commit_sha": "0a6f8ba86117d0d8fc75bdb836ba97585b2e7d97",
+    "commit_sha": "4014075ce52bdae1bab1c59d82c764d48bf09451",
     "exit_code": 0,
     "timed_out": false,
     "passed": 1,
     "failed": 0,
     "errors": 0,
     "summary": "1 passed in 0.01s",
-    "seconds": 0.746,
+    "seconds": 0.605,
     "output_tail": ".                                                                        [100%]\n1 passed in 0.01s\n",
-    "created_at": 1792087365.1840115
+    "created_at": 1792097763.3104596,
+    "backend": "local (process)"
   },
   {
     "id": 18,
@@ -132,15 +139,16 @@
     "step": "testing",
     "purpose": "suite",
     "command": "python -m pytest -q -p no:cacheprovider ",
-    "commit_sha": "0a6f8ba86117d0d8fc75bdb836ba97585b2e7d97",
+    "commit_sha": "4014075ce52bdae1bab1c59d82c764d48bf09451",
     "exit_code": 0,
     "timed_out": false,
     "passed": 18,
     "failed": 0,
     "errors": 0,
     "summary": "18 passed in 0.03s",
-    "seconds": 0.763,
+    "seconds": 0.624,
     "output_tail": "..................                                                       [100%]\n18 passed in 0.03s\n",
-    "created_at": 1792087366.0205655
+    "created_at": 1792097763.9941585,
+    "backend": "local (process)"
   }
 ]

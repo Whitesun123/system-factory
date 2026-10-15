@@ -2,8 +2,8 @@
   {
     "n": 1,
     "status": "revise",
-    "base": "022343d766fd7ec94a8a6f735e00345c0d1d05f9",
-    "commit": "994f475b2d7c557f1bbc1b453cb16406ae4fa8a5",
+    "base": "a58f19894d13393d93b9448b9b0d62511e418281",
+    "commit": "1f22695fdeed07a2687fa6a82975e3c2989310e5",
     "fingerprint": "46f1a5a37cfcd72f",
     "patch": {
       "file": "shopcart/cart.py",
@@ -11,7 +11,7 @@
       "tier": 1,
       "coder": "simulated-stubborn",
       "strategy": "fresh",
-      "base": "022343d766fd7ec94a8a6f735e00345c0d1d05f9",
+      "base": "a58f19894d13393d93b9448b9b0d62511e418281",
       "addressed": [],
       "required_probes": 0,
       "candidates_evaluated": 2,
@@ -21,11 +21,11 @@
     "decision_reason": "Iteration 1: 1 blocking finding(s); sending feedback to the coding agent.",
     "failure_signature": "068d6d75d031",
     "blocking_count": 1,
-    "started_at": 1792087356.613295,
-    "finished_at": 1792087362.12141,
+    "started_at": 1792097756.3787203,
+    "finished_at": 1792097760.868944,
     "tests": {
       "iteration": 1,
-      "commit": "994f475b2d7c557f1bbc1b453cb16406ae4fa8a5",
+      "commit": "1f22695fdeed07a2687fa6a82975e3c2989310e5",
       "repro_passed": true,
       "suite_passed": true,
       "repro_summary": "1 passed in 0.01s",
@@ -66,6 +66,10 @@
             "documented-behaviour",
             "inconsistent-boundary"
           ],
+          "evidence_states": [
+            "confirmed",
+            "deterministic"
+          ],
           "probes": [
             ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n"
           ],
@@ -87,7 +91,8 @@
               "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n",
               "reviewer": "simulated-spec",
               "confirmed": true,
-              "probe_outcome": "mismatch"
+              "probe_outcome": "mismatch",
+              "evidence_state": "confirmed"
             },
             {
               "severity": "major",
@@ -101,15 +106,21 @@
               "suggestion": "Check whether line 57 needs the same `>` -> `>=` change.",
               "probe": null,
               "reviewer": "simulated-diff",
-              "confirmed": null
+              "confirmed": null,
+              "evidence_state": "deterministic"
             }
           ],
           "id": "F1"
         }
       ],
       "blocking_count": 1,
+      "unresolved_count": 0,
       "signature": "068d6d75d031",
       "checks": [],
+      "inspected_reviews": {
+        "simulated-spec": "deterministic technique",
+        "simulated-diff": "deterministic technique"
+      },
       "strategy": "build_on_previous",
       "probes": [
         ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n"
@@ -132,8 +143,8 @@
   {
     "n": 2,
     "status": "stalled",
-    "base": "022343d766fd7ec94a8a6f735e00345c0d1d05f9",
-    "commit": "0a6f8ba86117d0d8fc75bdb836ba97585b2e7d97",
+    "base": "a58f19894d13393d93b9448b9b0d62511e418281",
+    "commit": "4014075ce52bdae1bab1c59d82c764d48bf09451",
     "fingerprint": "46f1a5a37cfcd72f",
     "patch": {
       "file": "shopcart/cart.py",
@@ -141,7 +152,7 @@
       "tier": 1,
       "coder": "simulated-stubborn",
       "strategy": "fresh",
-      "base": "022343d766fd7ec94a8a6f735e00345c0d1d05f9",
+      "base": "a58f19894d13393d93b9448b9b0d62511e418281",
       "addressed": [],
       "required_probes": 0,
       "candidates_evaluated": 2,
@@ -151,11 +162,11 @@
     "decision_reason": "Repeated solution: iteration 2 produced the same patch as iteration 1 (fingerprint 46f1a5a37c).",
     "failure_signature": "a9351e1d7d75",
     "blocking_count": 2,
-    "started_at": 1792087362.273063,
-    "finished_at": 1792087368.627631,
+    "started_at": 1792097760.995765,
+    "finished_at": 1792097765.9902594,
     "tests": {
       "iteration": 2,
-      "commit": "0a6f8ba86117d0d8fc75bdb836ba97585b2e7d97",
+      "commit": "4014075ce52bdae1bab1c59d82c764d48bf09451",
       "repro_passed": true,
       "suite_passed": true,
       "repro_summary": "1 passed in 0.01s",
@@ -201,6 +212,10 @@
             "repeated-solution",
             "unresolved-feedback"
           ],
+          "evidence_states": [
+            "confirmed",
+            "deterministic"
+          ],
           "probes": [
             ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n"
           ],
@@ -220,7 +235,8 @@
               "suggestion": "",
               "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n",
               "reviewer": "deterministic-tests",
-              "confirmed": null
+              "confirmed": null,
+              "evidence_state": "deterministic"
             },
             {
               "severity": "blocking",
@@ -235,7 +251,8 @@
               "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n",
               "reviewer": "simulated-diff",
               "confirmed": true,
-              "probe_outcome": "mismatch"
+              "probe_outcome": "mismatch",
+              "evidence_state": "confirmed"
             },
             {
               "severity": "blocking",
@@ -249,7 +266,8 @@
               "suggestion": "Address the earlier feedback instead of resubmitting.",
               "probe": null,
               "reviewer": "simulated-diff",
-              "confirmed": null
+              "confirmed": null,
+              "evidence_state": "deterministic"
             }
           ],
           "id": "F1"
@@ -274,6 +292,10 @@
             "documented-behaviour",
             "inconsistent-boundary"
           ],
+          "evidence_states": [
+            "confirmed",
+            "deterministic"
+          ],
           "probes": [
             ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n"
           ],
@@ -295,7 +317,8 @@
               "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n",
               "reviewer": "simulated-spec",
               "confirmed": true,
-              "probe_outcome": "mismatch"
+              "probe_outcome": "mismatch",
+              "evidence_state": "confirmed"
             },
             {
               "severity": "major",
@@ -309,15 +332,21 @@
               "suggestion": "Check whether line 57 needs the same `>` -> `>=` change.",
               "probe": null,
               "reviewer": "simulated-diff",
-              "confirmed": null
+              "confirmed": null,
+              "evidence_state": "deterministic"
             }
           ],
           "id": "F2"
         }
       ],
       "blocking_count": 2,
+      "unresolved_count": 0,
       "signature": "a9351e1d7d75",
       "checks": [],
+      "inspected_reviews": {
+        "simulated-spec": "deterministic technique",
+        "simulated-diff": "deterministic technique"
+      },
       "strategy": "build_on_previous",
       "probes": [
         ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n"
