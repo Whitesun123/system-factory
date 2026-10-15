@@ -5,3 +5,22 @@ __pycache__/
 .pytest_cache/
 .venv/
 data-archive-*/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Model weights and runtime caches (models stay in OLLAMA_MODELS, never in git)
+*.gguf
+*.safetensors
+*.bin
+.ollama/
+OllamaModels/
+models/
+
+# Local scratch / benchmark output
+examples/reviewer-benchmark/*.json
+*.log
+*.zip
+data-real-demo/

@@ -1,6 +1,7 @@
 """What a role sees while it runs: restricted helpers for logging, evidence, commands and budgets."""
 from __future__ import annotations
 
+import re
 import sys
 import time
 from dataclasses import dataclass, field
@@ -104,5 +105,30 @@ class StepContext:
                            timeout=timeout or self.settings.command_timeout_seconds,
                            env=env, should_stop=self.check_stop)
 
-    def run_pytest(self, *paths: str) -> CommandResult:
-        return self.run_python("-m", "pytest", "-q", "-p", "no:cacheprovider", *paths)
+    def run_pytest(self, *paths: str, purpose: str | None = None) -> CommandResult:
+        """Run pytest and persist the run (command, commit, exit code, pass/fail counts) as test evidence."""
+        res = self.run_python("-m", "pytest", "-q", "-p", "no:cacheprovider", *paths)
+        counts = pytest_counts(res.output)
+        try:
+            commit = self.git.out(self.worktree, "rev-parse", "HEAD")
+        except Exception:
+            commit = None
+        it = self.store.current_iteration(self.wf_id)
+        self.store.add_test_run(self.wf_id, {
+            "iteration": it["n"] if it else None, "step": self.step,
+            "purpose": purpose or ("suite" if not paths else " ".join(paths)),
+            "command": "python -m pytest -q -p no:cacheprovider " + " ".join(paths), "commit_sha": commit,
+            "exit_code": res.exit_code, "timed_out": res.timed_out, "seconds": round(res.duration, 3),
+            "summary": counts["summary"], "passed": counts["passed"], "failed": counts["failed"],
+            "errors": counts["errors"], "output_tail": res.output[-2000:]})
+        return res
+
+
+def pytest_counts(output: str) -> dict:
+    """Parse pytest's final summary line into counts (None when pytest printed no summary)."""
+    lines = [ln.strip("= ").strip() for ln in output.strip().splitlines() if ln.strip()]
+    summary = next((ln for ln in reversed(lines) if re.search(r"\d+ (passed|failed|error)", ln)), lines[-1] if lines else "")
+    def n(word: str) -> int | None:
+        m = re.search(rf"(\d+) {word}", summary)
+        return int(m.group(1)) if m else (0 if re.search(r"\d+ (passed|failed|error)", summary) else None)
+    return {"summary": summary, "passed": n("passed"), "failed": n("failed"), "errors": n("errors?")}

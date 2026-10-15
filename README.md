@@ -1,121 +1,189 @@
 # System Factory
 
-A local, AI-assisted software-engineering workflow system:
+A local, AI-assisted software-engineering orchestrator. It takes an issue (bug, feature request or support
+question) through **Intake → Triage → PRD → Plan → isolated workspace → Reproduction → [Coding → Deterministic
+tests → Independent reviewers → Evidence verification → Feedback aggregation → Revision]ⁿ → Quality gate →
+Human approval**. It never merges, pushes or deploys.
 
-**Intake → Triage → PRD → Plan → Coding → Testing → Review → Human Approval**
+Two runtimes share one pipeline:
 
-It handles bug reports, feature requests and support questions. A deterministic orchestrator drives each
-issue through a pipeline of specialised roles, isolates code changes in git worktrees, records every
-attempt, log line and piece of evidence in a persistent store, and **always stops for a human decision**.
-It never merges, pushes or deploys.
+| Runtime | Coding agent | Reviewers | Use |
+|---|---|---|---|
+| `simulated` (default) | deterministic search-based program repair | two deterministic reviewers (spec examples, diff heuristics) | unit tests, CI, offline demo |
+| `ollama` | real LLM tool-using agent (local Ollama) | two real LLM reviewers, A and B, using different models on **one** provider | real local inference |
 
-## Status (honest)
+See [MILESTONE5_STATUS.md](MILESTONE5_STATUS.md) for what has and has not been verified.
 
-| Area | Status |
-|---|---|
-| Orchestrator, state machine, retries, cancellation, budgets, crash recovery | **Working**, tested |
-| Persistent state (SQLite): workflows, steps, attempts, events, evidence, approvals | **Working**, tested |
-| Bug → failing reproduction test → fix in isolated worktree → re-test → review → approval | **Working** end to end on a real demo repo |
-| Iterative loop: coding → tests → independent reviewers → aggregated feedback → revision → quality gate | **Working**, tested; stall detection, iteration/time/token/cost budgets, escalation to `blocked` |
-| Coding agent | **Simulated**: deterministic search-based program repair that consumes review feedback. **No LLM is called.** |
-| Reviewers | Two **simulated** reviewers that use different techniques. Claude adapter (official SDK) and a generic command adapter for any provider exist but are **inactive** (no API key / SDK / budget approval). **No real model diversity is claimed.** |
-| Triage / PRD / plan / support roles | **Rule-based and template-based** (deterministic), labelled as such |
-| Dashboard over real state (no fake metrics) | **Working** |
-| Claude API / Agent SDK runtime | **Not implemented.** No API key configured; requires budget approval |
-| Container sandbox (Docker) | **Not yet.** Docker is installed but the daemon is not running; process-level isolation is used |
-| PostgreSQL | **Not yet.** Not installed; SQLite behind the `Store` class |
+## Architecture in one paragraph
 
-The ~95% automation figure in the brief is a long-term goal. Nothing here measures or claims it.
+A deterministic orchestrator ([orchestrator.py](systemfactory/orchestrator.py)) owns the state machine,
+retries, budgets, cancellation and the approval gate. Roles ([roles.py](systemfactory/roles.py)) do the work
+inside a step through a restricted context: they can only write allow-listed files in their own git worktree and
+run fixed commands with a scrubbed environment. The implementation loop repeats coding, testing, review and
+feedback per **iteration**. Reviewer findings are trusted only with executable evidence: probes and
+reviewer-proposed specification checks are run in the sandbox. Unconfirmed blockers are downgraded, and checks
+that fail when executed become blocking. The loop stops on success, on a stall (repeated patch, identical failures,
+no progress) or on a budget (iterations, time, tokens, cost). A stall or exhausted budget escalates to a human.
+Details: [ARCHITECTURE.md](ARCHITECTURE.md) and [DECISIONS.md](DECISIONS.md).
 
-## Quick start (Windows, PowerShell or Git Bash)
+## Install (Windows 11, PowerShell)
 
-Requirements: Python 3.11+ with `fastapi`, `uvicorn`, `pytest`, `httpx` (all already present on this machine), and git.
+Requirements: Python 3.11+ and git. Ollama is optional; it's only needed for the `ollama` runtime.
 
-```bash
+```powershell
+git clone https://github.com/Whitesun123/system-factory.git
+```
+
+```powershell
+cd system-factory; .\scripts\setup.ps1
+```
+
+`setup.ps1` creates `.venv`, installs `requirements.txt` and generates the separate demo repository in `data/`.
+Without the script: `pip install -r requirements.txt`, then `python -m systemfactory init-demo`.
+
+## Start the dashboard
+
+```powershell
+.\scripts\start.ps1
+```
+
+Open http://127.0.0.1:8765. The API, dashboard and background worker bind to localhost only. There is no
+authentication, so don't expose it.
+
+The dashboard shows the runtime and provider status, installed models with digests, a runtime selector, each
+workflow's pipeline, an **iterations** view (patch, tests, every reviewer report, executed checks, aggregated
+feedback, decision), an **agents** view (every model call with tokens and timing, the sanitized prompt and response,
+every coding-agent tool call, every test command with exit code and pass/fail counts), the diff, the audit log,
+approval controls and **Export evidence (.zip)**.
+
+## Configure Ollama (local LLM runtime)
+
+1. Install Ollama from https://ollama.com/download.
+2. Optional: store models on a large drive by setting `OLLAMA_MODELS` (for example `D:\OllamaModels`) for the
+   Ollama server process.
+3. Start the server, localhost only, with cloud features disabled:
+
+   ```powershell
+   $env:OLLAMA_NO_CLOUD = "1"; ollama serve
+   ```
+
+4. Download the default models (about 25 GB):
+
+   ```powershell
+   .\scripts\pull_models.ps1
+   ```
+
+   That runs `ollama pull qwen2.5-coder:14b`, `ollama pull phi4:14b` and `ollama pull mistral-nemo:12b`.
+5. Check availability. This reads the model list only; it never loads a model:
+
+   ```powershell
+   python scripts\check_models.py
+   ```
+
+System Factory talks to Ollama over its HTTP API (`POST /api/chat` with `stream: false` and a JSON-schema `format`
+for structured output; `GET /api/tags` for model digests; `GET /api/version`). Temperature is 0, and the seed is
+fixed per attempt.
+
+### Configuration
+
+All settings are environment variables; [.env.example](.env.example) lists them. Defaults are project-relative.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `SF_RUNTIME` | `simulated` | default runtime for new workflows (`simulated` or `ollama`) |
+| `SF_DATA_DIR` | `./data` | SQLite DB, generated demo repo, worktrees, evidence |
+| `SF_OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama server |
+| `SF_CODER_MODEL` | `qwen2.5-coder:14b` | coding agent |
+| `SF_REVIEWER_A_MODEL` | `phi4:14b` | Reviewer A: requirements, correctness, architecture |
+| `SF_REVIEWER_B_MODEL` | `mistral-nemo:12b` | Reviewer B: edge cases, regressions, security, maintainability |
+| `SF_OLLAMA_TIMEOUT` | `300` | seconds per model call |
+| `SF_OLLAMA_NUM_CTX` / `SF_OLLAMA_KEEP_ALIVE` | `12288` / `10m` | context window / how long a model stays loaded |
+| `SF_CODER_MAX_TURNS` | `6` | tool-loop turns per coding attempt |
+| `SF_REVIEWERS` | `simulated-spec,simulated-diff` | reviewers for the simulated runtime |
+| `ANTHROPIC_API_KEY`, `SF_ALLOW_PAID_INFERENCE=1` | unset | enable the optional, paid Claude reviewer adapter |
+
+Per-workflow budgets (iterations, loop time, tokens, cost, test runs) are in `Settings.default_budget`
+([config.py](systemfactory/config.py)) and can be overridden on submit (`--max-iterations`).
+
+## Run workflows
+
+Simulated, fully offline:
+
+```powershell
 python -m systemfactory demo
 ```
 
-That creates the separate buggy demo repository (`data/repos/shopcart`), submits every sample issue,
-runs them all and prints a summary. To use the dashboard:
+Real local inference (needs Ollama and the models):
 
-```bash
-python -m systemfactory serve
+```powershell
+python -m systemfactory submit --sample checkout --runtime ollama
 ```
 
-Then open http://127.0.0.1:8765.
-
-Run the test suite (about 3 minutes; it creates real git worktrees and runs real pytest):
-
-```bash
-python -m pytest -q
+```powershell
+python -m systemfactory run
 ```
 
-## CLI
+```powershell
+python -m systemfactory show 1
+```
 
-| Command | Purpose |
+Or pick **Real local inference (Ollama)** in the dashboard. Scripted real scenarios A–E (success, revision after
+review, stall via feedback ablation, provider unavailable, approval guard), checked against an oracle the agents
+never see:
+
+```powershell
+python scripts\real_demo.py
+```
+
+| CLI | Purpose |
 |---|---|
-| `init-demo [--force]` | Create the demo target repository (kept as-is if it exists) |
-| `submit --sample shipping\|pagination\|bulk\|coupon\|not_reproducible\|feature\|support` | Submit a sample issue |
-| `submit --title T --body B [--fault STEP=N] [--throttle-ms MS]` | Submit a custom issue, optionally with injected faults |
-| `submit ... [--coder simulated-stubborn] [--reviewers a,b] [--max-iterations N]` | Choose the coder (stubborn = test double that ignores feedback), reviewer adapters and loop limit |
-| `run` | Process the queue until idle |
-| `status` / `show ID` | List workflows / show steps, events and evidence |
-| `approve ID --by NAME [--comment C]` / `reject ID --by NAME` | Human decision |
-| `cancel ID` / `retry ID` | Cancel (queued or running) / retry a failed or blocked workflow |
-| `serve [--port 8765]` | API + dashboard + background worker (localhost only) |
-| `runtime` | Show which agent runtime is active |
+| `submit --sample S [--runtime simulated\|ollama] [--no-coder-feedback] [--max-iterations N]` | Submit a sample issue. Samples: shipping, pagination, bulk, checkout, coupon, not_reproducible, feature, support |
+| `submit --title T --body B` | Submit a custom issue (bugs need a fenced `>>>` example) |
+| `run` / `status` / `show ID` | Process the queue / list workflows / show steps, iterations, reviewers, evidence |
+| `approve ID --by NAME` / `reject ID --by NAME` | Human decision (approval requires quality gate SUCCESS) |
+| `cancel ID` / `retry ID` | Cancel / retry a failed or blocked workflow |
+| `export ID [--out DIR]` | Write a sanitized evidence package |
+| `runtime` | Show configured runtime and provider/model availability |
+| `serve` | API, dashboard and worker |
 
-## Layout
+## Logs and evidence
 
-```
-systemfactory/
-  orchestrator.py   deterministic workflow driver + Worker (leasing, concurrency)
-  statemachine.py   workflow/step states, legal transitions, per-type pipelines
-  store.py          SQLite persistent state and audit log
-  context.py        what a role may use: logging, evidence, sandboxed commands, budgets
-  roles.py          triage, requirements, architecture, infra, qa, coding, security, review, support
-  repair.py         search-based program repair (the simulated coding agent)
-  loop.py           review-loop rules: finding aggregation, probe confirmation, stall/budget decisions
-  reviewers.py      reviewer adapters: simulated-spec, simulated-diff, claude, command:<name>
-  sandbox.py        scrubbed env, timeouts, cancellation, workspace write guard, hermetic git
-  api.py, static/   FastAPI service and dashboard
-  demo.py, cli.py   demo repo setup, sample issues, CLI
-demo/shopcart_template/   source of the intentionally buggy demo repository
-tests/                    unit + end-to-end tests
-data/                     (git-ignored) SQLite DB, generated demo repo, worktrees
+Everything is persisted in SQLite (`data/systemfactory.db`): workflows, steps, attempts (with iteration), iterations,
+reviews (provider, model, digest, real or simulated, findings, checks), `llm_calls` (status, timings, tokens reported
+by the runtime, sanitized prompt and response), `tool_calls`, `test_runs` (command, commit, exit code, pass/fail
+counts), events (audit log), evidence and approvals.
+
+`python -m systemfactory export ID` (or the dashboard button) writes `summary.md`, `run-manifest.json`,
+`iterations.json`, `review-findings.json`, `test-results.json`, `quality-gate.json`, `patch.diff`, `llm-calls.json`,
+`tool-calls.json` and `events.json` to `data/evidence/wf-ID/`. Secrets are redacted and local paths are rewritten
+to `<PROJECT>`, `<DATA_DIR>` or `<HOME>`.
+
+## Tests
+
+```powershell
+.\scripts\test.ps1
 ```
 
-## Documents
+The suite is deterministic and needs no Ollama, network or LLM. Provider-failure paths are tested against a
+closed local port. Real-inference runs are in `scripts/real_demo.py` and `scripts/eval_reviewers.py` and are not
+part of the suite.
 
-- [ARCHITECTURE.md](ARCHITECTURE.md): components, state machine, data model, isolation model
-- [DECISIONS.md](DECISIONS.md): each major choice as problem → solution → tradeoff → evidence
-- [DEMO.md](DEMO.md): 5-minute demo script
-- [PRESENTATION.md](PRESENTATION.md): 2-minute explanation and likely questions
-- [SYSTEM_FACTORY_HANDOFF.md](SYSTEM_FACTORY_HANDOFF.md): the original brief
+## What remains unverified
 
-## Reviewer configuration
+See [MILESTONE5_STATUS.md](MILESTONE5_STATUS.md). In short: real-LLM scenarios B–E have **not** been run end to end
+with the final code; the reviewer-check mechanism was benchmarked on 5 labeled patches only; the default Reviewer B
+model scored lower than phi4 in that benchmark; and isolation is process-level, not a container.
 
-Reviewers are chosen per workflow (`options.reviewers`) or globally with `SF_REVIEWERS` (default
-`simulated-spec,simulated-diff`). At least 2 independent reviews must complete in every iteration. If a configured
-adapter is unavailable, a simulated one is substituted, and the log and dashboard say so.
+## Repository layout
 
-| Adapter | Enable with |
-|---|---|
-| `simulated-spec`, `simulated-diff` | always available (deterministic) |
-| `claude` | `pip install anthropic`, `ANTHROPIC_API_KEY`, and `SF_ALLOW_PAID_INFERENCE=1` (uses `claude-opus-5-5`, metered at $4 / $20 per MTok) |
-| `command:<name>` | `SF_REVIEWER_CMD_<NAME>="<command>"` plus optional `_PROVIDER`, `_MODEL`, `_SIMULATED=0`, `_TIMEOUT`. The command reads the review bundle JSON on stdin and prints `{"verdict", "summary", "findings", "input_tokens", "output_tokens", "cost_usd"}` |
-
-Example for real multi-provider review (requires keys and your budget approval):
-
-```bash
-SF_REVIEWERS=claude,command:other SF_REVIEWER_CMD_OTHER="python my_other_provider_reviewer.py" SF_REVIEWER_CMD_OTHER_PROVIDER=other SF_REVIEWER_CMD_OTHER_SIMULATED=0 SF_ALLOW_PAID_INFERENCE=1 python -m systemfactory serve
+```
+systemfactory/   orchestrator, statemachine, store, roles, loop (aggregation/stall rules), repair (simulated coder),
+                 coders (Ollama coding agent), reviewers (simulated, Ollama, Claude, command adapters),
+                 llm (Ollama client + call recorder), evidence (export), sandbox, api, cli, static/ (dashboard)
+demo/shopcart_template/   intentionally buggy demo library (copied into data/ as its own git repo)
+scripts/         setup/start/test/pull_models (PowerShell), check_models, real_demo, eval_reviewers
+tests/           deterministic unit and end-to-end tests
 ```
 
-## Next milestones
-
-1. **Real LLM coding provider** (Claude API / Agent SDK) behind the same role interface and permission
-   policies, with token/cost metering into the existing `usage` budget. Needs an API key and budget approval.
-   Its feedback input is already defined: the aggregated feedback items, required probes and rejected fingerprints.
-2. **Container sandbox**: run agent commands in Docker (no network, read-only base, worktree mounted).
-3. **PostgreSQL** store implementation (same `Store` interface) when multi-process deployment is needed.
-4. Richer QA: coverage-guided fault localisation, mutation testing of the generated test.
+Documents: [ARCHITECTURE.md](ARCHITECTURE.md), [DECISIONS.md](DECISIONS.md), [DEMO.md](DEMO.md),
+[PRESENTATION.md](PRESENTATION.md), [MILESTONE5_STATUS.md](MILESTONE5_STATUS.md).

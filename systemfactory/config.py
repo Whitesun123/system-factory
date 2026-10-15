@@ -20,7 +20,7 @@ class Settings:
         # implementation loop (coding -> tests -> reviewers -> feedback -> revision)
         "max_iterations": 4,
         "max_loop_seconds": 600,
-        "max_llm_tokens": 200_000,
+        "max_llm_tokens": 600_000,     # local tokens are free but still bounded
         "max_cost_usd": 1.00,
         "stall_window": 2,          # consecutive iterations without fewer blocking findings
     })
@@ -30,6 +30,22 @@ class Settings:
     reviewers: list = field(default_factory=lambda: [
         r.strip() for r in os.environ.get("SF_REVIEWERS", "simulated-spec,simulated-diff").split(",") if r.strip()])
     min_reviewers: int = 2
+    # Runtime: "simulated" (deterministic; default, used by the unit tests) or "ollama" (real local inference).
+    runtime: str = field(default_factory=lambda: os.environ.get("SF_RUNTIME", "simulated"))
+    ollama_url: str = field(default_factory=lambda: os.environ.get("SF_OLLAMA_URL", "http://127.0.0.1:11434"))
+    coder_model: str = field(default_factory=lambda: os.environ.get("SF_CODER_MODEL", "qwen2.5-coder:14b"))
+    reviewer_a_model: str = field(default_factory=lambda: os.environ.get("SF_REVIEWER_A_MODEL", "phi4:14b"))
+    reviewer_b_model: str = field(default_factory=lambda: os.environ.get("SF_REVIEWER_B_MODEL", "mistral-nemo:12b"))
+    coder_max_turns: int = field(default_factory=lambda: int(os.environ.get("SF_CODER_MAX_TURNS", "6")))
+
+    def runtime_options(self, runtime: str) -> dict:
+        """Workflow options that select a runtime; stored on the workflow so the run records its configuration."""
+        if runtime == "ollama":
+            return {"runtime": "ollama", "coder": "ollama", "reviewers": ["ollama-a", "ollama-b"],
+                    "allow_simulated_reviewers": False, "ollama_url": self.ollama_url,
+                    "models": {"coder": self.coder_model, "reviewer_a": self.reviewer_a_model,
+                               "reviewer_b": self.reviewer_b_model}}
+        return {"runtime": "simulated"}
     command_timeout_seconds: int = 60
     concurrency: int = 2
 
@@ -71,8 +87,9 @@ class Settings:
         return self.step_timeout_seconds.get(step, self.step_timeout_seconds["default"])
 
 
-def runtime_info() -> dict:
-    """Report honestly which agent runtime is in use. No LLM is called unless explicitly configured."""
+def runtime_info(settings: "Settings | None" = None, probe_ollama: bool = True) -> dict:
+    """Report honestly which runtime is configured and which providers are actually reachable."""
+    settings = settings or Settings.from_env()
     api_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
     paid_ok = os.environ.get("SF_ALLOW_PAID_INFERENCE") == "1"
     try:
@@ -80,16 +97,24 @@ def runtime_info() -> dict:
         sdk = True
     except ImportError:
         sdk = False
+    models = {"coder": settings.coder_model, "reviewer_a": settings.reviewer_a_model,
+              "reviewer_b": settings.reviewer_b_model}
+    ollama = None
+    if probe_ollama:
+        from .llm import OllamaClient
+        ollama = OllamaClient(base_url=settings.ollama_url).status(sorted(set(models.values())))
+    descriptions = {
+        "simulated": "Deterministic simulation: rule-based triage/PRD/plan, search-based program repair for coding "
+                     "and two simulated reviewers. No LLM is called.",
+        "ollama": "Real local inference via Ollama: LLM coding agent and two LLM reviewers (one provider, "
+                  "different models). Triage/PRD/plan, tests and the quality gate stay deterministic.",
+    }
     return {
-        "mode": "simulated",
-        "description": "Deterministic simulation: rule-based triage/PRD/plan, search-based program repair "
-                       "for coding, and two simulated reviewer adapters. No LLM is called by default.",
-        "claude_api_key_present": api_key,
-        "anthropic_sdk_installed": sdk,
-        "paid_inference_allowed": paid_ok,
-        "claude_runtime_available": False,
+        "mode": settings.runtime, "available_modes": ["simulated", "ollama"],
+        "description": descriptions.get(settings.runtime, settings.runtime),
+        "models": models, "ollama": ollama,
+        "claude_api_key_present": api_key, "anthropic_sdk_installed": sdk, "paid_inference_allowed": paid_ok,
         "claude_reviewer_available": api_key and paid_ok and sdk,
-        "note": "The coding agent has no LLM provider yet. A Claude reviewer adapter exists but is used only "
-                "when listed in SF_REVIEWERS and ANTHROPIC_API_KEY, the anthropic SDK and "
-                "SF_ALLOW_PAID_INFERENCE=1 are all present.",
+        "note": "Paid cloud providers (Claude adapter, command adapter) stay inactive unless configured and "
+                "explicitly approved (SF_ALLOW_PAID_INFERENCE=1).",
     }

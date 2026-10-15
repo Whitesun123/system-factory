@@ -71,6 +71,18 @@ SAMPLES: dict[str, dict] = {
             "5.0\n"
             "```\n"),
     },
+    "checkout": {
+        "label": "Bug: $50 order charged shipping (real-LLM demo; a related defect is not mentioned in the report)",
+        "title": "Customers with exactly $50.00 are charged shipping",
+        "body": (
+            "Our policy is that orders of $50.00 or more ship free, but a customer whose order came to exactly "
+            "$50.00 was charged the $4.99 fee at checkout. This is wrong.\n\n"
+            "```python\n"
+            ">>> from shopcart.checkout import shipping_cost\n"
+            ">>> shipping_cost(50.0)\n"
+            "0.0\n"
+            "```\n"),
+    },
     "coupon": {
         "label": "Bug: lowercase coupon codes (beyond simulated agent; exhausts retries)",
         "title": "Coupon codes rejected when typed in lowercase",

@@ -288,6 +288,184 @@ class ClaudeReviewer:
                 "input_tokens": in_tok, "output_tokens": out_tok, "cost_usd": cost, "model": served}
 
 
+# ------------------------------------------------------------------ Ollama reviewers (real local inference)
+OLLAMA_REVIEW_SCHEMA = {
+    "type": "object",
+    "properties": {
+        # property order matters for constrained decoding: the model writes its analysis before deciding
+        "analysis": {"type": "string"},
+        "verdict": {"type": "string", "enum": ["approve", "request_changes"]},
+        "summary": {"type": "string"},
+        "findings": {"type": "array", "items": {"type": "object", "properties": {
+            "severity": {"type": "string", "enum": ["blocking", "major", "minor"]},
+            "title": {"type": "string"}, "detail": {"type": "string"},
+            "file": {"type": "string"}, "function": {"type": "string"}, "line": {"type": "integer"},
+            "evidence": {"type": "string"}, "suggestion": {"type": "string"}, "probe": {"type": "string"}},
+            "required": ["severity", "title", "detail", "file", "function", "line", "evidence", "suggestion", "probe"]}},
+        # specification-derived test cases; System Factory executes them, only executed failures block
+        "checks": {"type": "array", "items": {"type": "object", "properties": {
+            "function": {"type": "string"}, "call": {"type": "string"}, "expected": {"type": "string"},
+            "rule": {"type": "string"}}, "required": ["function", "call", "expected", "rule"]}},
+    },
+    "required": ["analysis", "checks", "verdict", "summary", "findings"],
+}
+
+CHECKS_INSTRUCTIONS = """
+Specification checks (required): for EVERY function listed under "Functions in the changed files", write
+checks in `checks`, at least two per function: each is a call with literal arguments and the result the
+documented rules (issue, acceptance criteria, docstrings, module docs) say it MUST return. Include the values
+at, just below and just above every boundary the rules mention. `expected` is the exact Python repr of the
+correct result (e.g. 0.0, 'some text', [1, 2]); derive it from the rules, not from what the code returns.
+System Factory executes every check against the patched code; a failing check is a confirmed defect."""
+
+
+def function_inventory(files_after: dict[str, str]) -> list[dict]:
+    """Deterministic list of top-level functions (with signature lines) in the changed files."""
+    out = []
+    for path, src in files_after.items():
+        try:
+            tree = ast.parse(src)
+        except SyntaxError:
+            continue
+        lines = src.splitlines()
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                out.append({"file": path, "module": _module(path), "function": node.name,
+                            "signature": lines[node.lineno - 1].strip()})
+    return out
+
+
+SAFE_BUILTINS = {"list", "tuple", "set", "dict", "range", "str", "int", "float", "bool", "sorted", "frozenset"}
+
+
+def _safe_arg(node: ast.AST) -> bool:
+    """Literals, or pure builtin constructors over literals (e.g. list(range(10))). No names or attributes."""
+    try:
+        ast.literal_eval(node)
+        return True
+    except (ValueError, TypeError, SyntaxError):
+        pass
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in SAFE_BUILTINS:
+        return all(_safe_arg(a) for a in node.args) and not node.keywords
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        return all(_safe_arg(e) for e in node.elts)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+        return _safe_arg(node.operand)
+    return False
+
+
+def check_to_probe(check: dict, inventory: list[dict]) -> str | None:
+    """Turn a reviewer check into a doctest probe, or None if it is not a safe call of a listed function."""
+    name = (check.get("function") or "").strip().removesuffix("()").split(".")[-1]
+    fn = next((f for f in inventory if f["function"] == name), None)
+    if fn is None:
+        return None
+    try:
+        expr = ast.parse(check.get("call", "").strip(), mode="eval").body
+        if isinstance(expr, ast.Call) and isinstance(expr.func, ast.Attribute) and expr.func.attr == name:
+            expr.func = ast.Name(id=name, ctx=ast.Load())  # module.function(...) -> function(...)
+        if not (isinstance(expr, ast.Call) and isinstance(expr.func, ast.Name) and expr.func.id == name):
+            return None
+        if not all(_safe_arg(a) for a in [*expr.args, *(k.value for k in expr.keywords)]):
+            return None
+    except SyntaxError:
+        return None
+    expected = (check.get("expected") or "").strip()
+    if not expected:
+        return None
+    try:
+        ast.literal_eval(expected)
+    except (ValueError, SyntaxError):
+        expected = repr(expected)  # an unquoted text result: compare as a string
+    return f">>> from {fn['module']} import {name}\n>>> {ast.unparse(expr)}\n{expected}\n"
+
+REVIEWER_FOCUS = {
+    "ollama-a": ("Reviewer A", "requirements, correctness and architecture",
+                 "Method: (1) In `analysis`, list every behavioural rule stated in the issue, the acceptance criteria, "
+                 "and the module and function docstrings of the changed files. (2) For each rule, check EVERY function "
+                 "in the changed files that implements or depends on it, including functions the patch did not touch, "
+                 "and state whether it now behaves as the rule says. (3) Check the fix is made in the right place. "
+                 "A reported problem that is fixed in one function but still present in another function implementing "
+                 "the same rule is an incomplete fix."),
+    "ollama-b": ("Reviewer B", "edge cases, regressions, security and maintainability",
+                 "Method: (1) In `analysis`, identify the values the patch changes behaviour around (comparisons, "
+                 "thresholds, ranges, special cases). (2) For every function in the changed files that depends on "
+                 "those values, work out its result at, just below and just above each boundary, and compare with "
+                 "the documented behaviour. (3) Check behaviour existing callers and tests rely on, unsafe constructs, "
+                 "and whether the change is minimal and readable."),
+}
+
+OLLAMA_REVIEW_SYSTEM = """You are {label}, an independent code reviewer in an automated bug-fix pipeline.
+Your focus: {focus}.
+{instructions}
+You review a patch to a Python repository. You cannot change code. Other reviewers work independently; you will
+not see their output.
+Report only problems you can justify from the material given. For every finding give: severity
+(blocking = must be fixed before merge; major; minor), title, detail (explanation), file, function, line
+(0 if unknown), evidence (what in the code or test output shows it) and suggestion (how to fix or validate).
+For every BLOCKING finding about behaviour, `probe` MUST be a runnable doctest that FAILS on the patched code:
+`>>> ` lines that import from the module and call it, each followed by the expected correct output, e.g.
+">>> from pkg.mod import f\\n>>> f(3)\\n9". Probes are executed: a blocking finding whose probe does not fail
+with a wrong result is downgraded. Use "" for probe on non-behavioural findings.
+If the patch is correct and complete, return verdict "approve" with no blocking findings."""
+
+
+class OllamaReviewer:
+    """Independent reviewer backed by a local Ollama model. Real inference: simulated is False."""
+    provider, simulated = "ollama", False
+
+    def __init__(self, name: str, model: str, base_url: str | None = None, timeout: float | None = None):
+        from .llm import OllamaClient
+        self.name, self.model = name, model
+        self.label, focus, self.instructions = REVIEWER_FOCUS[name]
+        self.focus = focus
+        self.technique = f"LLM review ({focus}) via local Ollama"
+        self.client = OllamaClient(base_url=base_url, timeout=timeout)
+        self.recorder = None  # set by the review panel so every call becomes an llm_calls row
+
+    def available(self) -> tuple[bool, str]:
+        st = self.client.status([self.model])
+        if not st["reachable"]:
+            return False, st.get("error", "Ollama not reachable")
+        if not st["models"].get(self.model, {}).get("installed"):
+            return False, f"model {self.model} not installed (ollama pull {self.model})"
+        return True, f"ollama {st['version']} at {self.client.base_url}"
+
+    def review(self, bundle: dict, tools: Tools) -> dict:
+        from .llm import ProviderError, parse_json
+        system = (OLLAMA_REVIEW_SYSTEM.format(label=self.label, focus=self.focus, instructions=self.instructions)
+                  + CHECKS_INSTRUCTIONS)
+        inventory = function_inventory(bundle["files_after"])
+        listing = "\n".join(f"- {f['file']}: `{f['signature']}`" for f in inventory) or "(none)"
+        messages = [{"role": "system", "content": system},
+                    {"role": "user", "content": render_bundle(bundle) +
+                     f"\n\n# Functions in the changed files (write checks for each)\n{listing}"}]
+        try:
+            res, call = self.recorder.chat(self.client, self.model, messages, schema=OLLAMA_REVIEW_SCHEMA,
+                                           purpose=f"{self.label} review")
+        except ProviderError as e:
+            raise ReviewerError(f"{type(e).__name__}: {e}")
+        data = parse_json(res.content)
+        if data.get("verdict") not in ("approve", "request_changes"):
+            raise ReviewerError("reviewer reply did not match the review schema")
+        findings = []
+        for f in data.get("findings", []):
+            findings.append({**f, "line": f.get("line") or None, "file": f.get("file") or None,
+                             "function": f.get("function") or None, "probe": (f.get("probe") or "").strip() or None,
+                             "rule": f"llm-{self.name}"})
+        checks = []
+        for c in data.get("checks", []):
+            probe = check_to_probe(c, inventory)
+            checks.append({"function": c.get("function"), "call": c.get("call"), "expected": c.get("expected"),
+                           "rule": (c.get("rule") or "")[:300], "probe": probe, "valid": probe is not None,
+                           "file": next((f["file"] for f in inventory if f["function"] == c.get("function")), None)})
+        return {"verdict": data["verdict"], "summary": data.get("summary", ""), "findings": findings,
+                "checks": checks, "analysis": data.get("analysis", "")[:4000],
+                "input_tokens": res.input_tokens, "output_tokens": res.output_tokens, "cost_usd": 0.0,
+                "model": res.model, "llm_call_id": call["id"], "model_digest": call.get("model_digest"),
+                "execution": "real-local"}
+
+
 # ------------------------------------------------------------------ generic command reviewer
 class CommandReviewer:
     """Any provider: a user-configured command reads the bundle JSON on stdin and prints a review JSON."""
@@ -329,20 +507,29 @@ FACTORIES: dict[str, Callable[[], Reviewer]] = {
 FALLBACKS = ["simulated-spec", "simulated-diff"]
 
 
-def make(name: str) -> Reviewer:
+def make(name: str, options: dict | None = None, settings=None) -> Reviewer:
+    options = options or {}
     if name.startswith("command:"):
         return CommandReviewer(name.split(":", 1)[1])
+    if name in REVIEWER_FOCUS:
+        models = options.get("models", {})
+        default = {"ollama-a": getattr(settings, "reviewer_a_model", "phi4:14b"),
+                   "ollama-b": getattr(settings, "reviewer_b_model", "mistral-nemo:12b")}[name]
+        model = models.get("reviewer_a" if name == "ollama-a" else "reviewer_b") or default
+        return OllamaReviewer(name, model, base_url=options.get("ollama_url"), timeout=options.get("llm_timeout"))
     if name not in FACTORIES:
         raise ReviewerError(f"unknown reviewer adapter {name!r}")
     return FACTORIES[name]()
 
 
-def resolve(names: list[str], min_reviewers: int) -> tuple[list[Reviewer], list[str]]:
-    """Instantiate available reviewers; top up with simulated ones (and say so) if too few are available."""
+def resolve(names: list[str], min_reviewers: int, options: dict | None = None, settings=None,
+            allow_simulated: bool = True) -> tuple[list[Reviewer], list[str]]:
+    """Instantiate available reviewers. With allow_simulated, top up with simulated ones (and say so) if too few
+    are available; without it (real runtime) an unavailable reviewer is reported, never silently replaced."""
     chosen, notes = [], []
     for name in names:
         try:
-            r = make(name)
+            r = make(name, options, settings)
         except ReviewerError as e:
             notes.append(str(e))
             continue
@@ -351,6 +538,8 @@ def resolve(names: list[str], min_reviewers: int) -> tuple[list[Reviewer], list[
             chosen.append(r)
         else:
             notes.append(f"reviewer '{name}' unavailable: {why}")
+    if not allow_simulated:
+        return chosen, notes
     for name in FALLBACKS:
         if len(chosen) >= min_reviewers:
             break
@@ -361,14 +550,22 @@ def resolve(names: list[str], min_reviewers: int) -> tuple[list[Reviewer], list[
 
 
 def diversity(reviews: list[dict]) -> dict:
+    """Describe reviewer diversity truthfully. Different models on one runtime are NOT provider diversity."""
     ok = [r for r in reviews if r["verdict"] != "error"]
     real = [r for r in ok if not r["simulated"]]
     real_providers = sorted({r["provider"] for r in real})
+    real_models = sorted({r["model"] for r in real})
+    sim = len(ok) - len(real)
     if len(real_providers) >= 2:
         label = f"real multi-provider review ({', '.join(real_providers)})"
+    elif real and len(real_models) >= 2:
+        label = (f"REAL local inference: {len(real)} reviewers, {len(real_models)} different models "
+                 f"({', '.join(real_models)}) on ONE provider ({real_providers[0]}); not multi-provider")
     elif real:
-        label = f"{len(real)} real model reviewer(s) from one provider + {len(ok) - len(real)} simulated"
+        label = f"REAL: {len(real)} reviewer(s), one model on one provider ({real_providers[0]})"
     else:
         label = "SIMULATED: no real models; reviewers are independent by technique, not by model diversity"
+    if real and sim:
+        label += f" + {sim} simulated"
     return {"reviewers": len(ok), "real_model_reviewers": len(real), "real_providers": real_providers,
-            "real_provider_diversity": len(real_providers) >= 2, "label": label}
+            "real_models": real_models, "real_provider_diversity": len(real_providers) >= 2, "label": label}

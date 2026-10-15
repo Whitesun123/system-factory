@@ -136,12 +136,74 @@ CREATE TABLE IF NOT EXISTS reviews (
     error TEXT,
     created_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS llm_calls (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    workflow_id INTEGER NOT NULL REFERENCES workflows(id),
+    iteration INTEGER,
+    step TEXT NOT NULL,
+    role TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    execution TEXT NOT NULL,          -- real-local | real-cloud | simulated
+    model TEXT NOT NULL,
+    served_model TEXT,
+    model_digest TEXT,
+    model_details TEXT NOT NULL DEFAULT '{}',
+    base_url TEXT,
+    purpose TEXT,
+    status TEXT NOT NULL,             -- ok | unavailable | model_missing | timeout | invalid_output | error
+    error TEXT,
+    started_at REAL NOT NULL,
+    finished_at REAL,
+    runtime_seconds REAL,
+    load_seconds REAL,
+    eval_seconds REAL,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    done_reason TEXT,
+    prompt_sha256 TEXT,
+    response_sha256 TEXT,
+    prompt TEXT,
+    response TEXT
+);
+CREATE TABLE IF NOT EXISTS tool_calls (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    workflow_id INTEGER NOT NULL REFERENCES workflows(id),
+    iteration INTEGER,
+    step TEXT NOT NULL,
+    role TEXT NOT NULL,
+    llm_call_id INTEGER,
+    tool TEXT NOT NULL,
+    args TEXT NOT NULL DEFAULT '{}',
+    ok INTEGER NOT NULL,
+    result TEXT NOT NULL DEFAULT '',
+    seconds REAL NOT NULL DEFAULT 0,
+    created_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS test_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    workflow_id INTEGER NOT NULL REFERENCES workflows(id),
+    iteration INTEGER,
+    step TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    command TEXT NOT NULL,
+    commit_sha TEXT,
+    exit_code INTEGER NOT NULL,
+    timed_out INTEGER NOT NULL DEFAULT 0,
+    passed INTEGER,
+    failed INTEGER,
+    errors INTEGER,
+    summary TEXT,
+    seconds REAL NOT NULL,
+    output_tail TEXT,
+    created_at REAL NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_events_wf ON events(workflow_id, id);
 CREATE INDEX IF NOT EXISTS idx_steps_wf ON steps(workflow_id, seq);
 CREATE INDEX IF NOT EXISTS idx_wf_state ON workflows(state);
 """
 
-JSON_COLUMNS = {"options", "budget", "usage", "data", "output", "detail", "patch", "tests", "feedback", "findings"}
+JSON_COLUMNS = {"options", "budget", "usage", "data", "output", "detail", "patch", "tests", "feedback", "findings",
+                "model_details", "args", "checks"}
 
 
 def _now() -> float:
@@ -168,6 +230,11 @@ class Store:
             cols = {r["name"] for r in c.execute("PRAGMA table_info(attempts)")}
             if "iteration" not in cols:
                 c.execute("ALTER TABLE attempts ADD COLUMN iteration INTEGER")
+            rcols = {r["name"] for r in c.execute("PRAGMA table_info(reviews)")}
+            for col, typ in (("execution", "TEXT"), ("model_digest", "TEXT"), ("llm_call_id", "INTEGER"),
+                             ("checks", "TEXT"), ("analysis", "TEXT")):
+                if col not in rcols:
+                    c.execute(f"ALTER TABLE reviews ADD COLUMN {col} {typ}")
 
     @contextmanager
     def _conn(self) -> Iterator[sqlite3.Connection]:
@@ -429,13 +496,17 @@ class Store:
     def add_review(self, wf_id: int, iteration: int, review: dict) -> None:
         with self._conn() as c:
             c.execute("INSERT INTO reviews(workflow_id, iteration, reviewer, adapter, provider, model, simulated,"
-                      " verdict, summary, findings, input_tokens, output_tokens, cost_usd, seconds, error, created_at)"
-                      " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                      " verdict, summary, findings, input_tokens, output_tokens, cost_usd, seconds, error, created_at,"
+                      " execution, model_digest, llm_call_id, checks, analysis)"
+                      " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                       (wf_id, iteration, review["reviewer"], review["adapter"], review["provider"], review["model"],
                        int(review["simulated"]), review["verdict"], review.get("summary", ""),
                        json.dumps(review.get("findings", [])), review.get("input_tokens", 0),
                        review.get("output_tokens", 0), review.get("cost_usd", 0.0), review.get("seconds", 0.0),
-                       review.get("error"), _now()))
+                       review.get("error"), _now(),
+                       review.get("execution") or ("simulated" if review["simulated"] else "real"),
+                       review.get("model_digest"), review.get("llm_call_id"), json.dumps(review.get("checks", [])),
+                       review.get("analysis", "")))
 
     def get_reviews(self, wf_id: int, iteration: int | None = None) -> list[dict]:
         q, args = "SELECT * FROM reviews WHERE workflow_id = ?", [wf_id]
@@ -446,6 +517,62 @@ class Store:
         out = [_row(r) for r in rows]
         for r in out:
             r["simulated"] = bool(r["simulated"])
+        return out
+
+    # ---------------------------------------------------------------- agent observability
+    _LLM_COLS = ["workflow_id", "iteration", "step", "role", "provider", "execution", "model", "served_model",
+                 "model_digest", "model_details", "base_url", "purpose", "status", "error", "started_at", "finished_at",
+                 "runtime_seconds", "load_seconds", "eval_seconds", "input_tokens", "output_tokens", "done_reason",
+                 "prompt_sha256", "response_sha256", "prompt", "response"]
+
+    def add_llm_call(self, rec: dict) -> int:
+        cols = [c for c in self._LLM_COLS if c in rec]
+        vals = [json.dumps(rec[c]) if c in JSON_COLUMNS else rec[c] for c in cols]
+        with self._conn() as c:
+            return c.execute(f"INSERT INTO llm_calls({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
+                             vals).lastrowid
+
+    def get_llm_calls(self, wf_id: int, with_text: bool = False) -> list[dict]:
+        cols = "*" if with_text else ", ".join(c for c in ["id", *self._LLM_COLS] if c not in ("prompt", "response"))
+        with self._conn() as c:
+            rows = c.execute(f"SELECT {cols} FROM llm_calls WHERE workflow_id = ? ORDER BY id", (wf_id,)).fetchall()
+        return [_row(r) for r in rows]
+
+    def get_llm_call(self, call_id: int) -> dict | None:
+        with self._conn() as c:
+            return _row(c.execute("SELECT * FROM llm_calls WHERE id = ?", (call_id,)).fetchone())
+
+    def add_tool_call(self, wf_id: int, iteration: int | None, step: str, role: str, tool: str, args: dict,
+                      ok: bool, result: str, seconds: float, llm_call_id: int | None = None) -> None:
+        with self._conn() as c:
+            c.execute("INSERT INTO tool_calls(workflow_id, iteration, step, role, llm_call_id, tool, args, ok, result,"
+                      " seconds, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                      (wf_id, iteration, step, role, llm_call_id, tool, json.dumps(args), int(ok), result[:4000],
+                       seconds, _now()))
+
+    def get_tool_calls(self, wf_id: int) -> list[dict]:
+        with self._conn() as c:
+            rows = c.execute("SELECT * FROM tool_calls WHERE workflow_id = ? ORDER BY id", (wf_id,)).fetchall()
+        out = [_row(r) for r in rows]
+        for r in out:
+            r["ok"] = bool(r["ok"])
+        return out
+
+    def add_test_run(self, wf_id: int, rec: dict) -> None:
+        with self._conn() as c:
+            c.execute("INSERT INTO test_runs(workflow_id, iteration, step, purpose, command, commit_sha, exit_code,"
+                      " timed_out, passed, failed, errors, summary, seconds, output_tail, created_at)"
+                      " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                      (wf_id, rec.get("iteration"), rec["step"], rec["purpose"], rec["command"], rec.get("commit_sha"),
+                       rec["exit_code"], int(rec.get("timed_out", False)), rec.get("passed"), rec.get("failed"),
+                       rec.get("errors"), rec.get("summary"), rec["seconds"], rec.get("output_tail"), _now()))
+
+    def get_test_runs(self, wf_id: int) -> list[dict]:
+        with self._conn() as c:
+            rows = c.execute("SELECT * FROM test_runs WHERE workflow_id = ? ORDER BY id", (wf_id,)).fetchall()
+        out = [_row(r) for r in rows]
+        for r in out:
+            r["timed_out"] = bool(r["timed_out"])
         return out
 
     # ---------------------------------------------------------------- audit log / evidence / approvals

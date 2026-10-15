@@ -9,9 +9,12 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 
+import time
+
+from . import evidence as evidence_mod
 from . import reviewers as reviewers_mod
 from .config import Settings, runtime_info
 from .demo import SAMPLES, init_demo_repo
@@ -25,6 +28,7 @@ STATIC = Path(__file__).parent / "static"
 class IssueIn(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     body: str = Field(default="", max_length=20000)
+    runtime: Literal["simulated", "ollama"] | None = None
     faults: dict[str, int] = Field(default_factory=dict)
     throttle_ms: int = Field(default=0, ge=0, le=2000)
 
@@ -32,7 +36,9 @@ class IssueIn(BaseModel):
 class SampleIn(BaseModel):
     faults: dict[str, int] = Field(default_factory=dict)
     throttle_ms: int = Field(default=0, ge=0, le=2000)
-    coder: Literal["simulated-repair", "simulated-stubborn"] = "simulated-repair"
+    coder: Literal["default", "simulated-stubborn"] = "default"
+    coder_feedback: bool = True
+    runtime: Literal["simulated", "ollama"] | None = None
     max_iterations: int | None = Field(default=None, ge=1, le=10)
 
 
@@ -57,6 +63,7 @@ def create_app(settings: Settings | None = None, *, start_worker: bool = True) -
 
     app = FastAPI(title="System Factory", version="0.1.0", lifespan=lifespan)
     app.state.orch, app.state.worker = orch, worker
+    status_cache: dict = {}
 
     def guard(fn, *args, **kwargs):
         try:
@@ -74,7 +81,10 @@ def create_app(settings: Settings | None = None, *, start_worker: bool = True) -
 
     @app.get("/api/health")
     def health():
-        return {"ok": True, "runtime": runtime_info(), "counts": orch.store.counts_by_state(),
+        now = time.time()
+        if now - status_cache.get("at", 0) > 10:  # do not hammer Ollama from a 1.5 s polling dashboard
+            status_cache.update(at=now, info=runtime_info(settings))
+        return {"ok": True, "runtime": status_cache["info"], "counts": orch.store.counts_by_state(),
                 "worker": {"running": start_worker, "owner": worker.owner, "concurrency": worker.concurrency,
                            "active_workflows": sorted(worker.active)},
                 "repo": str(settings.demo_repo)}
@@ -85,7 +95,7 @@ def create_app(settings: Settings | None = None, *, start_worker: bool = True) -
 
     @app.post("/api/issues", status_code=201)
     def submit_issue(issue: IssueIn):
-        wf_id = guard(orch.submit, issue.title, issue.body, source="dashboard",
+        wf_id = guard(orch.submit, issue.title, issue.body, source="dashboard", runtime=issue.runtime,
                       options={"faults": issue.faults, "throttle_ms": issue.throttle_ms})
         return {"workflow_id": wf_id}
 
@@ -95,16 +105,21 @@ def create_app(settings: Settings | None = None, *, start_worker: bool = True) -
             raise HTTPException(404, f"unknown sample {key}")
         opts = opts or SampleIn()
         s = SAMPLES[key]
-        wf_id = orch.submit(s["title"], s["body"], source=f"sample:{key}",
-                            options={"faults": opts.faults, "throttle_ms": opts.throttle_ms, "coder": opts.coder},
-                            budget={"max_iterations": opts.max_iterations} if opts.max_iterations else None)
+        options = {"faults": opts.faults, "throttle_ms": opts.throttle_ms}
+        if opts.coder != "default":
+            options["coder"] = opts.coder
+        if not opts.coder_feedback:
+            options["coder_feedback"] = False
+        wf_id = guard(orch.submit, s["title"], s["body"], source=f"sample:{key}", runtime=opts.runtime,
+                      options=options, budget={"max_iterations": opts.max_iterations} if opts.max_iterations else None)
         return {"workflow_id": wf_id}
 
     @app.get("/api/reviewers")
     def reviewer_adapters():
         out = []
-        for name in [*reviewers_mod.FACTORIES, *[n for n in settings.reviewers if n.startswith("command:")]]:
-            r = reviewers_mod.make(name)
+        for name in [*reviewers_mod.FACTORIES, "ollama-a", "ollama-b",
+                     *[n for n in settings.reviewers if n.startswith("command:")]]:
+            r = reviewers_mod.make(name, settings.runtime_options("ollama"), settings)
             ok, why = r.available()
             out.append({"name": name, "provider": r.provider, "model": r.model, "simulated": r.simulated,
                         "technique": r.technique, "available": ok, "reason": why,
@@ -127,7 +142,22 @@ def create_app(settings: Settings | None = None, *, start_worker: bool = True) -
                 "events": orch.store.get_events(wf_id), "evidence": orch.store.get_evidence(wf_id),
                 "approvals": orch.store.get_approvals(wf_id),
                 "iterations": orch.store.get_iterations(wf_id), "reviews": orch.store.get_reviews(wf_id),
+                "llm_calls": orch.store.get_llm_calls(wf_id), "tool_calls": orch.store.get_tool_calls(wf_id),
+                "test_runs": orch.store.get_test_runs(wf_id),
                 "policies": {s["role"]: ROLE_POLICIES.get(s["role"], {}) for s in steps}}
+
+    @app.get("/api/llm_calls/{call_id}")
+    def llm_call(call_id: int):
+        c = orch.store.get_llm_call(call_id)
+        if c is None:
+            raise HTTPException(404, f"llm call {call_id} not found")
+        return evidence_mod.Sanitizer(settings.data_dir)(c)
+
+    @app.get("/api/workflows/{wf_id}/export")
+    def export_evidence(wf_id: int):
+        data = guard(evidence_mod.export_zip, orch, wf_id)
+        return Response(data, media_type="application/zip",
+                        headers={"Content-Disposition": f'attachment; filename="system-factory-wf-{wf_id}-evidence.zip"'})
 
     @app.post("/api/workflows/{wf_id}/approve")
     def approve(wf_id: int, d: DecisionIn):

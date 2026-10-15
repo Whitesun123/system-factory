@@ -6,11 +6,14 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.110",
     "uvicorn>=0.29",
+    "httpx>=0.27",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "httpx>=0.27"]
+dev = ["pytest>=8"]
+claude = ["anthropic"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-norecursedirs = ["demo", "data", ".git"]
+norecursedirs = ["demo", "data", ".git", "scripts"]
+markers = ["ollama: needs a running Ollama server with the configured models (skipped by default)"]

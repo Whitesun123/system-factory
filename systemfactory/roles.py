@@ -353,7 +353,8 @@ def coding(ctx: StepContext) -> dict:
     history = _previous_iterations(ctx, n)
     prev = history[-1] if history else None
     coder = wf["options"].get("coder", "simulated-repair")
-    stubborn = coder == "simulated-stubborn"   # labelled test double: ignores review feedback
+    # labelled ablations: the stubborn test double, or a real coder with feedback withheld
+    stubborn = coder == "simulated-stubborn" or wf["options"].get("coder_feedback", True) is False
     fb = (prev or {}).get("feedback") or {}
     if stubborn or not prev:
         fb = {}
@@ -363,6 +364,10 @@ def coding(ctx: StepContext) -> dict:
 
     probes = [] if stubborn else accumulated_probes(history)
     rejected = set() if stubborn else {i["fingerprint"] for i in history if i.get("fingerprint")}
+    if coder == "ollama":
+        from . import coders
+        return coders.run(ctx, n=n, prev=prev, fb=fb, strategy=strategy, base=base, probes=probes,
+                          rejected=rejected, checkpoint=checkpoint)
     identifiers, _ = repair.identifiers_in_example(extract_example(wf["issue_body"]) or "")
     for p in probes:
         identifiers |= repair.identifiers_in_example(p)[0]
@@ -519,9 +524,19 @@ def review_panel(ctx: StepContext) -> dict:
     n = it["n"]
     wf = ctx.wf
     names = wf["options"].get("reviewers") or ctx.settings.reviewers
-    adapters, notes = reviewers_mod.resolve(names, ctx.settings.min_reviewers)
+    allow_sim = wf["options"].get("allow_simulated_reviewers", True)
+    adapters, notes = reviewers_mod.resolve(names, ctx.settings.min_reviewers, wf["options"], ctx.settings,
+                                            allow_simulated=allow_sim)
     for note in notes:
         ctx.log(note, level="warning")
+    if len(adapters) < ctx.settings.min_reviewers:
+        raise TransientError(f"only {len(adapters)} reviewer(s) available, {ctx.settings.min_reviewers} required "
+                             f"(simulated substitutes {'allowed' if allow_sim else 'NOT allowed in this runtime'}): "
+                             + "; ".join(notes))
+    for a in adapters:
+        if hasattr(a, "recorder"):
+            from .llm import Recorder
+            a.recorder = Recorder(ctx.store, ctx.wf_id, n, ctx.step, a.name)
     bundle = review_bundle(ctx, it)
     tools = _ReviewTools(ctx, n)
     results = []
@@ -542,7 +557,10 @@ def review_panel(ctx: StepContext) -> dict:
             res = adapter.review(copy.deepcopy(bundle), tools)
             rec.update(verdict=res["verdict"], summary=res.get("summary", ""), findings=res.get("findings", []),
                        input_tokens=res.get("input_tokens", 0), output_tokens=res.get("output_tokens", 0),
-                       cost_usd=res.get("cost_usd", 0.0), model=res.get("model", adapter.model))
+                       cost_usd=res.get("cost_usd", 0.0), model=res.get("model", adapter.model),
+                       execution=res.get("execution"), model_digest=res.get("model_digest"),
+                       llm_call_id=res.get("llm_call_id"), checks=res.get("checks", []),
+                       analysis=res.get("analysis", ""))
         except Exception as e:  # a reviewer failure is recorded, never silently treated as approval
             rec.update(verdict="error", error=f"{type(e).__name__}: {e}", findings=[])
         rec["seconds"] = round(time.time() - t0, 3)

@@ -272,7 +272,8 @@ def test_aggregate_groups_corroborates_and_signs():
             {"severity": "major", "rule": "pattern", "title": "same pattern", "file": "f.py", "function": "g", "line": 7}]},
         {"reviewer": "c", "verdict": "error", "findings": [{"severity": "blocking", "title": "ignored"}]},
     ]
-    agg = loop.aggregate(reviews, tests, confirm_probe=lambda src: (False, "still fails"))
+    mismatch = "Failed example:\n    1\nExpected:\n    2\nGot:\n    1\n"
+    agg = loop.aggregate(reviews, tests, confirm_probe=lambda src: (False, mismatch))
     assert agg["blocking_count"] == 1 and len(agg["items"]) == 1
     item = agg["items"][0]
     assert item["corroborated"] and item["sources"] == ["a", "b"] and item["location"]["lines"] == [7]

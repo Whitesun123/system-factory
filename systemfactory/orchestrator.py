@@ -31,8 +31,12 @@ class Orchestrator:
 
     # ------------------------------------------------------------------ intake
     def submit(self, title: str, body: str, *, repo: Path | str | None = None, source: str = "manual",
-               options: dict | None = None, budget: dict | None = None) -> int:
+               options: dict | None = None, budget: dict | None = None, runtime: str | None = None) -> int:
         repo = Path(repo or self.settings.demo_repo)
+        runtime = runtime or (options or {}).get("runtime") or self.settings.runtime
+        if runtime not in ("simulated", "ollama"):
+            raise ValueError(f"unknown runtime {runtime!r} (expected simulated or ollama)")
+        options = {**self.settings.runtime_options(runtime), **(options or {})}
         if not (repo / ".git").exists():
             raise ValueError(f"target repository not initialised: {repo} (run `python -m systemfactory init-demo`)")
         if not title.strip():

@@ -74,6 +74,16 @@ tr.wf:hover, tr.wf.sel { background: var(--bg); }
 .finding .d { color: var(--muted); font-size: 12px; margin-left: 4px; }
 .fb { background: var(--bg); border-radius: 8px; padding: 8px 10px; margin: 6px 0; }
 .arrow { text-align: center; color: var(--muted); font-size: 12px; margin: -4px 0; }
+.s-real, .s-real-local, .s-ok { background: var(--ok-bg); color: var(--ok); }
+.s-real-cloud { background: var(--info-bg); color: var(--info); }
+.s-unavailable, .s-timeout, .s-model_missing, .s-invalid_output, .s-mismatch { background: var(--bad-bg); color: var(--bad); }
+.s-pass { background: var(--ok-bg); color: var(--ok); }
+.s-invalid, .s-probe-error { background: var(--idle-bg); color: var(--idle); }
+.prov { font-size: 12px; } .prov td { padding: 3px 4px; }
+table.compact td, table.compact th { padding: 4px 5px; font-size: 12px; }
+tr.click { cursor: pointer; } tr.click:hover { background: var(--bg); }
+.stats { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; margin: 8px 0; }
+.stats b { font-size: 15px; display: block; color: var(--ink); }
 .muted { color: var(--muted); }
 .small { font-size: 12px; }
 .pipeline { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
@@ -119,8 +129,15 @@ summary { cursor: pointer; font-weight: 600; font-size: 13px; }
 <main>
   <section>
     <div class="card">
+      <h2>Runtime &amp; providers</h2>
+      <div id="providers" class="prov muted">checking…</div>
+    </div>
+    <div class="card">
       <h2>Submit a sample issue</h2>
       <select id="sample"></select>
+      <label>Runtime</label>
+      <select id="runtimeSel"><option value="ollama">Real local inference (Ollama)</option><option value="simulated">Deterministic simulation</option></select>
+      <label class="check"><input type="checkbox" id="nofeedback"> Withhold review feedback from the coder (ablation: demonstrates stall detection with a real model)</label>
       <label class="check"><input type="checkbox" id="fault"> Inject a transient fault in step
         <select id="faultStep" style="width:auto"><option>reproduce</option><option>coding</option><option>triage</option><option>testing</option></select></label>
       <label class="check"><input type="checkbox" id="throttle"> Slow down repair (200 ms/candidate) to demo cancellation</label>
@@ -168,7 +185,18 @@ async function loadSamples() {
 async function refreshHeader() {
   const h = await api("/api/health");
   const rt = h.runtime;
-  $("#runtime").textContent = rt.mode === "simulated" ? "runtime: SIMULATED (no LLM)" : "runtime: " + rt.mode;
+  const ol = rt.ollama || {};
+  $("#runtime").textContent = `default runtime: ${rt.mode === "simulated" ? "SIMULATED" : "REAL (Ollama)"} · Ollama ${ol.reachable ? "connected " + ol.version : "NOT reachable"}`;
+  $("#runtime").className = "badge " + (ol.reachable ? "" : "sim");
+  const roleOf = Object.fromEntries(Object.entries(rt.models || {}).map(([r, m]) => [m, r]));
+  const rows = Object.entries(ol.models || {}).map(([m, i]) => `<tr><td><code>${esc(m)}</code></td>
+      <td>${esc(Object.entries(rt.models).filter(([r, x]) => x === m).map(([r]) => r).join(", "))}</td>
+      <td>${i.installed ? chip("ok") + " " + esc(i.parameter_size || "") + " " + esc(i.quantization || "") : chip("model_missing")}</td>
+      <td class="muted">${esc((i.digest || "").slice(0, 12))}</td></tr>`).join("");
+  $("#providers").innerHTML = `<div><b>Ollama</b> ${ol.reachable ? chip("ok") : chip("unavailable")} <span class="muted">${esc(ol.url || "")} ${esc(ol.version || ol.error || "")} · local, free · one provider</span></div>
+    <table class="prov">${rows}</table>
+    <div><b>Claude API</b> ${rt.claude_reviewer_available ? chip("ok") : `<span class="st s-sim">inactive</span>`} <span class="muted">${rt.claude_api_key_present ? "key present" : "no key"} · ${rt.paid_inference_allowed ? "paid inference approved" : "paid inference not approved"}</span></div>
+    <div><b>Simulation</b> <span class="st s-sim">always available</span> <span class="muted">deterministic coder + reviewers (tests, offline demo)</span></div>`;
   $("#runtime").title = rt.description + " " + rt.note;
   $("#worker").textContent = h.worker.running
     ? `worker: ${h.worker.active_workflows.length}/${h.worker.concurrency} busy` : "worker: off";
@@ -209,6 +237,8 @@ function renderIterations(d) {
   return d.iterations.map((it, idx) => {
     const p = it.patch || {}, t = it.tests || {}, fb = it.feedback || {};
     const revs = d.reviews.filter(r => r.iteration === it.n);
+    const executed = (fb.checks || []);
+    const checksOf = (r) => executed.length ? executed.filter(c => c.reviewer === r.reviewer) : (r.checks || []);
     const probes = t.probes || [];
     const testsRow = Object.keys(t).length ? `
       ${chip(t.repro_passed ? "passed" : "FAILED")} repro &nbsp; ${chip(t.suite_passed ? "passed" : "FAILED")} suite (${esc(t.suite_summary)}) &nbsp;
@@ -216,10 +246,13 @@ function renderIterations(d) {
       ${chip(t.security?.passed ? "passed" : "FAILED")} scope/security` : `<span class="muted small">not run yet</span>`;
     const reviewsHtml = revs.length ? revs.map(r => `<div class="rev">
         <b>${esc(r.reviewer)}</b> <span class="small muted">${esc(r.provider)} / ${esc(r.model)}</span>
-        ${r.simulated ? `<span class="st s-sim">SIMULATED</span>` : `<span class="st s-passed">REAL MODEL</span>`}
+        ${r.simulated ? `<span class="st s-sim">SIMULATED</span>` : `<span class="st s-real">REAL ${esc((r.execution || "").replace("real-", "").toUpperCase())}</span>`}
+        ${r.model_digest ? `<span class="small muted">digest ${esc(r.model_digest.slice(0, 12))}</span>` : ""}
         ${chip(r.verdict)} <span class="small muted">${r.seconds}s${r.cost_usd ? ` · $${r.cost_usd.toFixed(4)} · ${r.input_tokens + r.output_tokens} tok` : ""}</span>
         <div class="small muted">${esc(r.summary || r.error || "")}</div>
         ${(r.findings || []).map(f => `<div class="finding">${chip(f.severity)} ${esc(f.title)}<span class="d">${esc(f.detail || "")}</span></div>`).join("")}
+        ${checksOf(r).length ? `<details><summary class="small">${checksOf(r).length} specification checks proposed · ${checksOf(r).filter(c => ["mismatch","exception"].includes(c.outcome)).length} failed when executed</summary>
+          <table class="compact">${checksOf(r).map(c => `<tr><td><code>${esc(c.call)}</code></td><td>→ <code>${esc(c.expected)}</code></td><td>${chip(c.outcome || "pending")}</td><td class="muted">${c.got ? "got " + esc(c.got) : ""}</td></tr>`).join("")}</table></details>` : ""}
       </div>`).join("") : `<span class="muted small">no reviews yet</span>`;
     const fbHtml = (fb.items || []).length ? fb.items.map(i => `<div class="fb">
         <b>${esc(i.id)}</b> ${chip(i.severity)} <code>${esc((i.location.file ? i.location.file + "::" : "") + i.location.where)}</code> — ${esc(i.title)}
@@ -230,7 +263,7 @@ function renderIterations(d) {
       </div>`).join("") : (it.decision ? `<span class="muted small">No findings.</span>` : `<span class="muted small">pending</span>`);
     const card = `<div class="iter ${open.includes(it.status) ? "open" : ""}">
       <h3>Iteration ${it.n} ${chip(it.status)} <span class="small muted">${p.mutation ? esc(p.file + " " + p.mutation) : "coding…"}</span></h3>
-      <div class="small muted">${p.coder ? `coder: ${esc(p.coder)} · strategy: ${esc(p.strategy)} · base ${esc((p.base || "").slice(0, 10))} · fingerprint ${esc((it.fingerprint || "").slice(0, 10))}` : ""}
+      <div class="small muted">${p.coder ? `coder: ${esc(p.coder)}${p.model ? ` <b>${esc(p.model)}</b> (real local, ${p.turns} turns${p.feedback_given === false && it.n > 1 ? ", feedback WITHHELD" : ""})` : ""} · strategy: ${esc(p.strategy)} · base ${esc((p.base || "").slice(0, 10))} · fingerprint ${esc((it.fingerprint || "").slice(0, 10))}` : ""}
         ${p.addressed?.length ? ` · addresses ${esc(p.addressed.join(", "))} with ${p.required_probes} required probe(s)` : ""}${p.skipped_rejected ? ` · ${p.skipped_rejected} rejected solution(s) skipped` : ""}</div>
       <div class="sec"><b>1 · Deterministic tests</b><div class="small" style="margin-top:4px">${testsRow}</div></div>
       <div class="sec"><b>2 · Independent reviewers</b>${reviewsHtml}</div>
@@ -278,6 +311,7 @@ function renderDetail(d) {
     ["Base commit", (w.base_commit || "–").slice(0, 12)], ["Started", fmtT(w.started_at)], ["Automation time", dur(w.started_at, w.finished_at)],
     ...(d.approvals.length ? [["Decision", `${d.approvals.at(-1).decision} by ${d.approvals.at(-1).actor} at ${fmtT(d.approvals.at(-1).ts)}`]] : []),
     ["Usage", `${u.test_runs || 0} test runs · ${u.candidate_evals || 0} repair candidates · ${u.llm_tokens || 0} LLM tokens · $${(u.cost_usd || 0).toFixed(2)}`],
+    ...(w.options.models ? [["Models", Object.entries(w.options.models).map(([r, m]) => `${r}: ${m}`).join(" · ")]] : []),
     ["Options", JSON.stringify(w.options)]].map(([k, v]) => `<div>${k}</div><div>${esc(v)}</div>`).join("");
 
   let body = "";
@@ -297,19 +331,39 @@ function renderDetail(d) {
     body = `<table><thead><tr><th>Iter</th><th>Step</th><th>#</th><th>Status</th><th>Duration</th><th>Error</th></tr></thead>${d.attempts.map(a => `<tr>
       <td>${a.iteration ?? "–"}</td><td>${esc(a.step)}</td><td>${a.n}</td><td>${chip(a.status === "running" ? "running" : a.status)}</td>
       <td>${dur(a.started_at, a.finished_at)}</td><td class="small">${esc(a.error || "")}</td></tr>`).join("")}</table>`;
+  } else if (tab === "agents") {
+    const calls = d.llm_calls, ok = calls.filter(c => c.status === "ok");
+    const tin = ok.reduce((a, c) => a + (c.input_tokens || 0), 0), tout = ok.reduce((a, c) => a + (c.output_tokens || 0), 0);
+    const secs = calls.reduce((a, c) => a + ((c.finished_at || c.started_at) - c.started_at), 0);
+    body = `<div class="stats"><div><b>${calls.length}</b>model calls</div><div><b>${calls.length - ok.length}</b>failed calls</div>
+        <div><b>${tin} / ${tout}</b>tokens in / out (reported by runtime)</div><div><b>${secs.toFixed(1)}s</b>inference time</div>
+        <div><b>${d.tool_calls.length}</b>agent tool calls</div><div><b>${d.test_runs.length}</b>test commands run</div></div>
+      <h2 style="margin-top:12px">Model calls <span class="muted small" style="text-transform:none">(click a row for the sanitized prompt and response)</span></h2>
+      ${calls.length ? `<table class="compact"><thead><tr><th>#</th><th>Iter</th><th>Role</th><th>Model</th><th>Exec</th><th>Status</th><th>Tok in/out</th><th>Time</th><th>Purpose</th></tr></thead>
+      ${calls.map(c => `<tr class="click" data-call="${c.id}"><td>${c.id}</td><td>${c.iteration ?? "–"}</td><td>${esc(c.role)}</td><td><code>${esc(c.model)}</code> <span class="muted">${esc((c.model_digest || "").slice(0, 8))}</span></td>
+        <td>${chip(c.execution)}</td><td>${chip(c.status)}</td><td>${c.input_tokens ?? "–"} / ${c.output_tokens ?? "–"}</td><td>${(((c.finished_at || c.started_at) - c.started_at)).toFixed(1)}s</td><td class="small">${esc(c.purpose || "")} ${c.error ? `<span class="lvl-error">${esc(c.error)}</span>` : ""}</td></tr>`).join("")}</table>
+      <div id="callDetail"></div>` : `<div class="empty">No model calls: this workflow ran in deterministic simulation.</div>`}
+      <h2 style="margin-top:12px">Coding-agent tool calls</h2>
+      ${d.tool_calls.length ? `<table class="compact"><thead><tr><th>Iter</th><th>Tool</th><th>OK</th><th>Args</th><th>Result</th></tr></thead>
+      ${d.tool_calls.map(t => `<tr><td>${t.iteration ?? "–"}</td><td><code>${esc(t.tool)}</code></td><td>${chip(t.ok ? "ok" : "FAILED")}</td><td class="small">${esc(JSON.stringify(t.args))}</td><td class="small"><pre style="max-height:90px;margin:0">${esc(t.result.slice(0, 600))}</pre></td></tr>`).join("")}</table>` : `<div class="muted small">none</div>`}
+      <h2 style="margin-top:12px">Test commands that actually ran</h2>
+      <table class="compact"><thead><tr><th>Iter</th><th>Step</th><th>Purpose</th><th>Exit</th><th>Passed</th><th>Failed</th><th>Commit</th><th>Time</th></tr></thead>
+      ${d.test_runs.map(t => `<tr><td>${t.iteration ?? "–"}</td><td>${esc(t.step)}</td><td class="small">${esc(t.purpose)}</td><td>${chip(t.exit_code === 0 ? "passed" : "FAILED")} ${t.exit_code}</td><td>${t.passed ?? "–"}</td><td>${t.failed ?? "–"}</td><td class="muted">${esc((t.commit_sha || "").slice(0, 10))}</td><td>${t.seconds}s</td></tr>`).join("")}</table>`;
   } else if (tab === "data") {
     body = `<pre>${esc(JSON.stringify(w.data, null, 2))}</pre>`;
   }
 
   $("#detail").innerHTML = `
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><h2 style="margin:0;text-transform:none;letter-spacing:0;font-size:16px;color:var(--ink)">#${w.id} ${esc(w.issue_title)}</h2>${chip(w.state)}</div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><h2 style="margin:0;text-transform:none;letter-spacing:0;font-size:16px;color:var(--ink)">#${w.id} ${esc(w.issue_title)}</h2>${chip(w.state)}
+      ${w.options.runtime === "ollama" ? `<span class="st s-real">REAL LOCAL INFERENCE</span>` : `<span class="st s-sim">SIMULATED</span>`}
+      <a href="/api/workflows/${w.id}/export" style="margin-left:auto"><button>Export evidence (.zip)</button></a></div>
     ${banner}${actions.join("")}
     ${loopLine}
     <div class="pipeline">${steps}</div>
     <div class="kv">${kv}</div>
     <div class="row">${btns.join("")}</div>
     <details style="margin-top:10px"><summary>Original issue</summary><pre style="white-space:pre-wrap">${esc(w.issue_body)}</pre></details>
-    <div class="tabs">${["iterations","evidence","diff","log","attempts","data"].map(t => `<button data-tab="${t}" class="${t === tab ? "on" : ""}">${t}</button>`).join("")}</div>
+    <div class="tabs">${["iterations","agents","evidence","diff","log","attempts","data"].map(t => `<button data-tab="${t}" class="${t === tab ? "on" : ""}">${t}</button>`).join("")}</div>
     <div style="margin-top:10px">${body}</div>`;
 
   document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { tab = b.dataset.tab; lastDetail = ""; refreshDetail(); });
@@ -323,6 +377,15 @@ function renderDetail(d) {
     $("#approve").onclick = () => { const actor = $("#actor").value.trim(); if (!actor) return alert("Enter your name to approve."); act("approve", { actor, comment: $("#comment").value })(); };
     $("#reject").onclick = () => { const actor = $("#actor").value.trim(); if (!actor) return alert("Enter your name to reject."); act("reject", { actor, comment: $("#comment").value })(); };
   }
+  document.querySelectorAll("tr[data-call]").forEach(tr => tr.onclick = async () => {
+    const c = await api(`/api/llm_calls/${tr.dataset.call}`);
+    let prompt = c.prompt; try { prompt = JSON.parse(c.prompt).map(m => `--- ${m.role} ---\n${m.content}`).join("\n\n"); } catch (e) {}
+    $("#callDetail").innerHTML = `<div class="iter"><h3>Model call #${c.id} ${chip(c.status)} <code>${esc(c.model)}</code></h3>
+      <div class="small muted">digest ${esc(c.model_digest || "")} · ${esc(c.execution)} · ${esc(c.base_url || "")} · prompt sha256 ${esc((c.prompt_sha256 || "").slice(0, 16))} · load ${c.load_seconds ?? "–"}s · eval ${c.eval_seconds ?? "–"}s · done: ${esc(c.done_reason || "")}</div>
+      <div class="sec"><b>Response</b><pre>${esc(c.response || c.error || "")}</pre></div>
+      <details><summary class="small">Prompt (sanitized)</summary><pre style="white-space:pre-wrap">${esc(prompt || "")}</pre></details></div>`;
+    lastDetail = "__hold__";
+  });
   if ($("#cancel")) $("#cancel").onclick = act("cancel");
   if ($("#retry")) $("#retry").onclick = act("retry");
 }
@@ -330,7 +393,8 @@ function renderDetail(d) {
 async function refreshDetail() {
   if (selected == null) return;
   const d = await api(`/api/workflows/${selected}`);
-  const sig = JSON.stringify([d.workflow.state, d.workflow.updated_at, d.events.length, d.evidence.length,
+  if (lastDetail === "__hold__" && tab === "agents" && ["awaiting_approval","approved","rejected","failed","blocked","cancelled"].includes(d.workflow.state)) return;
+  const sig = JSON.stringify([d.workflow.state, d.workflow.updated_at, d.events.length, d.evidence.length, d.llm_calls.length, d.tool_calls.length,
     d.attempts.map(a => a.status), d.iterations.map(i => i.status), d.reviews.length, tab]);
   if (sig === lastDetail) return;
   const typing = document.activeElement && ["actor","comment"].includes(document.activeElement.id);
@@ -351,9 +415,10 @@ async function submit(path, payload) {
   } catch (e) { alert(e.message); }
 }
 $("#submitSample").onclick = () => submit(`/api/samples/${$("#sample").value}`, {
+  runtime: $("#runtimeSel").value, coder_feedback: !$("#nofeedback").checked,
   faults: $("#fault").checked ? { [$("#faultStep").value]: 1 } : {}, throttle_ms: $("#throttle").checked ? 200 : 0,
-  coder: $("#stubborn").checked ? "simulated-stubborn" : "simulated-repair" });
-$("#submitCustom").onclick = () => submit("/api/issues", { title: $("#ctitle").value, body: $("#cbody").value });
+  coder: $("#stubborn").checked ? "simulated-stubborn" : "default" });
+$("#submitCustom").onclick = () => submit("/api/issues", { title: $("#ctitle").value, body: $("#cbody").value, runtime: $("#runtimeSel").value });
 
 loadSamples(); refresh(); setInterval(refresh, 1500);
 </script>

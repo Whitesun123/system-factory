@@ -1,0 +1,8 @@
+# Runtime
+fastapi>=0.110
+uvicorn>=0.29
+httpx>=0.27
+# Tests
+pytest>=8
+# Optional: Claude reviewer adapter (inactive unless ANTHROPIC_API_KEY and SF_ALLOW_PAID_INFERENCE=1)
+# anthropic

@@ -79,6 +79,9 @@ def main(argv: list[str] | None = None) -> None:
                     help="simulated-stubborn is a labelled test double that ignores review feedback")
     sp.add_argument("--reviewers", help="comma-separated reviewer adapters (default: settings / SF_REVIEWERS)")
     sp.add_argument("--max-iterations", type=int)
+    sp.add_argument("--runtime", choices=["simulated", "ollama"], help="default: SF_RUNTIME or simulated")
+    sp.add_argument("--no-coder-feedback", action="store_true",
+                    help="ablation: withhold review feedback from the coder (demonstrates stall detection)")
     sub.add_parser("run", help="process queued workflows until idle")
     sub.add_parser("status", help="list workflows")
     sp = sub.add_parser("show", help="show one workflow in detail")
@@ -95,7 +98,10 @@ def main(argv: list[str] | None = None) -> None:
     sp.add_argument("--host", default="127.0.0.1")
     sp.add_argument("--port", type=int, default=8765)
     sub.add_parser("demo", help="init demo repo, submit every sample issue, run, and summarise")
-    sub.add_parser("runtime", help="show which agent runtime is active")
+    sub.add_parser("runtime", help="show which agent runtime is active and which providers are reachable")
+    sp = sub.add_parser("export", help="write a sanitized evidence package for a workflow")
+    sp.add_argument("id", type=int)
+    sp.add_argument("--out", help="output directory (default: <data>/evidence/wf-<id>)")
     args = p.parse_args(argv)
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -114,7 +120,7 @@ def main(argv: list[str] | None = None) -> None:
         print(init_demo_repo(settings, force=args.force))
         return
     if args.cmd == "runtime":
-        print(json.dumps(runtime_info(), indent=2))
+        print(json.dumps(runtime_info(settings), indent=2))
         return
 
     orch = Orchestrator(settings)
@@ -126,11 +132,15 @@ def main(argv: list[str] | None = None) -> None:
             title, body, source = args.title, args.body, "cli"
         else:
             sys.exit("provide --sample or --title")
-        options = {"faults": _parse_faults(args.fault), "throttle_ms": args.throttle_ms, "coder": args.coder}
+        options = {"faults": _parse_faults(args.fault), "throttle_ms": args.throttle_ms}
+        if args.coder != "simulated-repair":
+            options["coder"] = args.coder
+        if args.no_coder_feedback:
+            options["coder_feedback"] = False
         if args.reviewers:
             options["reviewers"] = [r.strip() for r in args.reviewers.split(",") if r.strip()]
         budget = {"max_iterations": args.max_iterations} if args.max_iterations else None
-        print(f"submitted workflow {orch.submit(title, body, source=source, options=options, budget=budget)}")
+        print(f"submitted workflow {orch.submit(title, body, source=source, options=options, budget=budget, runtime=args.runtime)}")
     elif args.cmd == "run":
         done = Worker(orch).run_until_idle()
         print(f"processed workflows: {done}")
@@ -145,9 +155,13 @@ def main(argv: list[str] | None = None) -> None:
     elif args.cmd in ("cancel", "retry"):
         getattr(orch, args.cmd)(args.id)
         print(f"workflow {args.id}: {orch.store.get_workflow(args.id)['state']}")
+    elif args.cmd == "export":
+        from .evidence import export
+        print(f"evidence written to {export(orch, args.id, args.out)}")
     elif args.cmd == "demo":
         print(init_demo_repo(settings))
-        print(f"runtime: {runtime_info()['mode']} - {runtime_info()['description']}\n")
+        info = runtime_info(settings, probe_ollama=False)
+        print(f"runtime: {info['mode']} - {info['description']}\n")
         ids = {}
         for key, s in SAMPLES.items():
             ids[key] = orch.submit(s["title"], s["body"], source=f"sample:{key}")
