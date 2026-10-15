@@ -62,3 +62,35 @@ command or CI run), and what remains open. Nothing here is a plan presented as a
 - **Gate additions:** the reviewed commit must be the final HEAD with a clean worktree; enough reviews must have
   inspected the change; there must be no unresolved evidence.
 - Tests: `tests/test_evidence_states.py` (15) and `tests/test_evidence_integrity.py` (7).
+
+## M6.3: Reviewer evaluation framework (implemented, run with real inference)
+
+- `evaluation/`: 23 labelled cases (11 defective, 12 correct) over 12 materialised code bases. Every case is a valid
+  bug fix: the reproduction test fails before and passes after, and the existing tests pass. The labels are checked
+  against independent oracles (`tests/test_reviewer_eval_dataset.py`) and never reach the reviewers.
+- Each case is scored by the raw verdict and by the pipeline decision. Checks run in the Docker sandbox.
+- A per-call checkpoint cache is keyed by case, role, model, digest and prompt hash. The budget is cumulative across
+  runs.
+- Run: 30.4 minutes of real inference (budget 30), Ollama 0.30.8, one provider. 22 (case, model) pairs were **not
+  executed**; they are listed in `evaluation/results/REPORT.md`.
+- **Measured:** raw model verdicts caught 0–2 of 9 defects on the comparable 18 cases. The evidence pipeline caught
+  6 of 9 for phi4 alone and 7 of 9 for the phi4 + gemma3 panel, with 0 false blocks. Every mixed-model panel also
+  escalated 8–10 of 18 cases to a human. The deterministic baseline caught 0 of 9.
+- **Pipeline defects found by the evaluation and fixed:** an expected exception was compared as a string, which
+  blocked correct code that raised it; a mis-escaped backslash made a model's check test a different input. Both
+  are fixed with regression tests, and the cached reviews were re-scored with no new inference.
+- **Selection:** Reviewer A `phi4:14b`, Reviewer B `gemma3:12b` (DECISIONS.md D23). The margin over the next panels
+  is one case.
+- Observed failure: `qwen3:14b` returned an empty reply after exhausting its output on thinking tokens (recorded as
+  a reviewer error, never as an approval).
+
+## M6.5: Engineering quality (implemented, verified locally; CI pending)
+
+- ruff (E, F, W, B) and mypy (`check_untyped_defs`): clean. Fixing the 75 mypy errors exposed two latent bugs, both
+  fixed with regression tests: a crash on a malformed diff hunk header, and an LLM reviewer that could run
+  without a call recorder.
+- Coverage of the control-plane modules: 95% overall (orchestrator 96%, statemachine 100%, loop 96%, store 95%,
+  context 92%, execution 90%, sandbox 90%). The whole package is at 87%. CI fails below 85% on the control plane.
+- `constraints.txt` (generated from a clean virtual environment) and `requirements-dev.txt` pin the versions.
+- `real-model-eval.yml` runs only via manual dispatch on `main`, on a self-hosted `gpu-ollama` runner. It uses no
+  secrets, and its inputs reach the shell only as environment variables. Pull-request code never reaches that host.

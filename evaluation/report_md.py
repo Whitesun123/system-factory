@@ -53,12 +53,13 @@ def render(report: dict) -> str:
         "## Run",
         "",
         f"- dataset cases: {report['dataset_cases']}; cases materialised: {report['executed_cases']}",
-        f"- new inference: {report['new_inference_minutes']} min of a {report['budget_minutes']:.0f} min budget "
-        f"(wall clock {report['wall_minutes']} min)",
+        f"- cumulative inference: {report.get('inference_minutes', report.get('new_inference_minutes'))} min of a "
+        f"{report['budget_minutes']:.0f} min budget; new in the run that wrote this report: "
+        f"{report.get('new_inference_minutes_this_run', '–')} min",
         f"- (case, model) pairs **not executed** because the budget ran out: {len(report['not_executed'])}",
         f"- probes and checks executed on the `{report['execution_backend']}` backend",
-        f"- Ollama {report.get('ollama_version') or 'unknown'}; peak GPU memory observed "
-        f"{report.get('gpu_peak_vram_mib') or 'unknown'} MiB; cost $0 (local inference)",
+        f"- Ollama {report.get('ollama_version') or 'unknown'}; cost $0 (local inference). GPU memory and wall "
+        "clock of the inference run are in `inference-run-1.json` (re-scoring runs use no GPU)",
         "",
         "| Configuration | model digest | prompt hash |",
         "|---|---|---|",

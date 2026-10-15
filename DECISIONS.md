@@ -308,3 +308,29 @@ Test names refer to files in `tests/`.
   escalated rather than trusted. That is the conservative failure mode: it costs a human look, not a wrong merge.
 - **Evidence:** `tests/test_evidence_states.py` (including the substring-grounding regression), and
   `tests/test_quality_regressions.py`.
+
+## D23. A labelled reviewer evaluation, and choosing reviewers from it (Milestone 6)
+
+- **Problem:** The Milestone 5 benchmark had 5 patches and scored raw verdicts. It could not show whether the evidence
+  pipeline helps, and it measured a reviewer the system no longer trusts directly.
+- **Solution:** `evaluation/` holds 23 labelled cases (11 defective, 12 correct) over 12 small code bases. The labels
+  are written from the requirements and checked against oracles. Every case is a valid bug fix: its reproduction
+  test fails before and passes after, so the defects are the ones a reproduction test misses. Each case is scored
+  twice, once by the raw verdict and once by the full pipeline decision (checks executed in the Docker sandbox,
+  evidence classified). Every model call is checkpointed in a cache keyed by case, role, model, digest and prompt.
+  The inference budget is cumulative across runs, and pairs that were not run are listed, not extrapolated.
+- **Findings:** Raw verdicts were close to useless: on the 18 cases every model ran, the models approved nearly every
+  patch. Executing their proposed checks caught 6 of 9 defects for phi4 with 0 false blocks. The deterministic
+  baseline caught 0 of 9. The evaluation also exposed two pipeline defects that had produced *false blocks*: an
+  expected exception was compared as a string, and a mis-escaped backslash in a model's check tested a different
+  input. Both are fixed with regression tests. The cached reviews were re-scored with no new inference
+  (`inference-run-1.json` keeps the scores from before the fix).
+- **Selection:** Reviewer A `phi4:14b`, Reviewer B `gemma3:12b`. On the comparable subset the phi4 + gemma3 panel
+  had the fewest false approvals (1), no false blocks, the most catches (7 of 9) and no errors. phi4 + qwen3:14b
+  and phi4 + mistral-nemo:12b each caught 6. qwen3 also failed once by spending its whole output on thinking tokens
+  (empty reply), and its mean latency (43 s) was 2.7 times that of phi4 as Reviewer A (16 s).
+- **Limits:** 18 comparable cases; the panels differ by one case, which is within noise. The mixed-model panels escalated 8–10
+  of 18 cases to a human, because many model expectations could not be traced to a requirement. Five cases were not
+  run for every model within the 30-minute budget. All models are on one provider.
+- **Evidence:** `evaluation/results/REPORT.md`, `report.json`, `cache.jsonl`; `tests/test_reviewer_eval_dataset.py`,
+  and the exception and escaping regressions in `tests/test_evidence_states.py`.

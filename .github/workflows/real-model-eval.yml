@@ -7,7 +7,7 @@ on:
     inputs:
       configs:
         description: "reviewer configs (role=model, comma separated)"
-        default: "ollama-a=phi4:14b,ollama-b=qwen3:14b"
+        default: "ollama-a=phi4:14b,ollama-b=gemma3:12b"
       budget_minutes:
         description: "cumulative inference budget"
         default: "30"

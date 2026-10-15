@@ -174,8 +174,22 @@ def run_reviewer(name: str, model: str | None, bundle: dict, tools) -> dict:
     return rec
 
 
+def revalidate(review: dict, bundle: dict) -> dict:
+    """Re-derive each check's probe from the model's raw fields (function, call, expected) with the CURRENT
+    validation code. Cached reviews keep the model output; deterministic post-processing is never cached."""
+    if review.get("reviewer") in reviewers.TRUSTED_REVIEWERS or not review.get("checks"):
+        return review
+    inventory = reviewers.function_inventory(bundle["files_after"])
+    checks = []
+    for c in review["checks"]:
+        probe, problem = reviewers.validate_check(c, inventory)
+        checks.append({**c, "probe": probe, "valid": probe is not None, "invalid_reason": problem})
+    return {**review, "checks": checks}
+
+
 def decide(reviews: list[dict], bundle: dict, run_probe, needed: int) -> dict:
     """Raw verdict vs pipeline decision for a set of reviews of one patch."""
+    reviews = [revalidate(r, bundle) for r in reviews]
     ok = [r for r in reviews if r.get("verdict") != "error"]
     raw = "block" if any(r["verdict"] == "request_changes" for r in ok) else "approve"
     if len(ok) < needed:

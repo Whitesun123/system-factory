@@ -24,6 +24,7 @@ import os
 import re
 import subprocess
 import tokenize
+import warnings
 from typing import TYPE_CHECKING, Callable, Mapping, Protocol
 
 from .loop import parse_unified_diff
@@ -357,8 +358,46 @@ def _safe_arg(node: ast.AST) -> bool:
     return False
 
 
+_MISESCAPED = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")  # control characters other than \t and \n
+_EXC_NAME = r"[A-Za-z_][\w.]*(?:Error|Exception|Warning|Exit|Interrupt)"
+_EXC_TEXT = re.compile(rf"^(?:raises?\s+|an?\s+)?({_EXC_NAME})(?:\s*:\s*(.+))?$", re.S)
+
+
+def expected_exception(expected: str) -> tuple[str, str | None] | None:
+    """Recognise an expectation that a call RAISES: `ValueError('msg')`, `ValueError: msg`, `raises ValueError`
+    or a pasted traceback. Returns (exception name, message or None), or None if the expectation is a value."""
+    text = expected.strip()
+    if text.startswith("Traceback"):
+        text = text.splitlines()[-1].strip()
+    try:
+        node: ast.AST | None = ast.parse(text, mode="eval").body
+    except SyntaxError:
+        node = None
+    if isinstance(node, ast.Call) and isinstance(node.func, (ast.Name, ast.Attribute)) and not node.keywords:
+        name = ast.unparse(node.func)
+        if not re.fullmatch(_EXC_NAME, name) or len(node.args) > 1:
+            return None
+        if not node.args:
+            return name, None
+        arg = node.args[0]
+        return (name, arg.value) if isinstance(arg, ast.Constant) and isinstance(arg.value, str) else None
+    if node is not None and not isinstance(node, (ast.Name, ast.Attribute)):
+        return None  # a literal value or another expression: not an exception
+    m = _EXC_TEXT.match(text)
+    if not m:
+        return None
+    msg = m.group(2).strip().strip("'\"") if m.group(2) else None
+    return m.group(1), msg or None
+
+
 def validate_check(check: dict, inventory: list[dict]) -> tuple[str | None, str | None]:
     """Turn a reviewer check into a doctest probe. Returns (probe, None) or (None, reason it is invalid)."""
+    with warnings.catch_warnings():  # model text such as 'a\i' must not print SyntaxWarnings
+        warnings.simplefilter("ignore", SyntaxWarning)
+        return _validate_check(check, inventory)
+
+
+def _validate_check(check: dict, inventory: list[dict]) -> tuple[str | None, str | None]:
     qualified = (check.get("function") or "").strip().removesuffix("()")
     name = qualified.split(".")[-1]
     module = qualified.rsplit(".", 1)[0] if "." in qualified else None
@@ -379,16 +418,31 @@ def validate_check(check: dict, inventory: list[dict]) -> tuple[str | None, str 
         return None, f"call is not a direct call of {name}()"
     if not all(_safe_arg(a) for a in [*expr.args, *(k.value for k in expr.keywords)]):
         return None, "arguments must be literals or pure builtin constructors"
+    if any(isinstance(n, ast.Constant) and isinstance(n.value, str) and _MISESCAPED.search(n.value)
+           for n in ast.walk(expr)):
+        # e.g. 'a\another' is BEL + 'nother', not a backslash: running it would test an input nobody intended
+        return None, "a string argument contains a control character (probably an unescaped backslash)"
     expected = (check.get("expected") or "").strip()
     if not expected:
         return None, "no expected value"
+    head = f">>> from {fn['module']} import {name}\n>>> {ast.unparse(expr)}"
+    exc = expected_exception(expected)
+    if exc:
+        # An expected exception becomes a doctest traceback expectation, so a correct `raise` passes. The message
+        # is reduced to one line, so it cannot start another `>>>` example.
+        exc_name, msg = exc
+        msg_line = " ".join((msg or "").split())
+        if msg_line:
+            return f"{head}\nTraceback (most recent call last):\n    ...\n{exc_name}: {msg_line}\n", None
+        return (f"{head}  # doctest: +IGNORE_EXCEPTION_DETAIL\nTraceback (most recent call last):\n    ...\n"
+                f"{exc_name}: ...\n"), None
     try:
         value = ast.literal_eval(expected)
     except (ValueError, SyntaxError):
         value = expected  # an unquoted text result: compare as a string
     # Always emit the single-line repr of the value: a multi-line literal could otherwise smuggle extra
     # `>>> ...` lines (i.e. arbitrary code) into the doctest.
-    return f">>> from {fn['module']} import {name}\n>>> {ast.unparse(expr)}\n{repr(value)}\n", None
+    return f"{head}\n{repr(value)}\n", None
 
 
 def check_to_probe(check: dict, inventory: list[dict]) -> str | None:
@@ -587,7 +641,7 @@ def make(name: str, options: dict | None = None, settings=None) -> Reviewer:
     if name in REVIEWER_FOCUS:
         models = options.get("models", {})
         default = {"ollama-a": getattr(settings, "reviewer_a_model", "phi4:14b"),
-                   "ollama-b": getattr(settings, "reviewer_b_model", "mistral-nemo:12b")}[name]
+                   "ollama-b": getattr(settings, "reviewer_b_model", "gemma3:12b")}[name]
         model = models.get("reviewer_a" if name == "ollama-a" else "reviewer_b") or default
         return OllamaReviewer(name, model, base_url=options.get("ollama_url"), timeout=options.get("llm_timeout"))
     if name not in FACTORIES:

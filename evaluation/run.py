@@ -49,6 +49,13 @@ def load_cache(path: Path) -> dict:
     return cache
 
 
+def prior_inference_seconds(cache: dict, configs: list[tuple[str, str, str | None]], case_ids: list[str]) -> float:
+    """Inference time already spent (and cached) on these (role, model, digest) configurations and cases."""
+    wanted = set(configs)
+    return sum(rec["review"].get("seconds", 0) for rec in cache.values()
+               if (rec["role"], rec["model"], rec["digest"]) in wanted and rec["case"] in case_ids)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--configs", required=True, help="comma-separated role=model, role in ollama-a/ollama-b")
@@ -71,7 +78,10 @@ def main() -> int:
     if missing:
         print(f"models not installed: {missing}")
         return 2
-    budget_s, spent, peak_vram = args.budget_minutes * 60, 0.0, vram_mib() or 0
+    # The budget is cumulative: inference already recorded in the cache for these configurations counts, so a
+    # re-run (e.g. to re-score with new pipeline code) never silently buys more inference.
+    prior = prior_inference_seconds(cache, [(r, m, digests[m]) for r, m in configs], case_ids)
+    budget_s, spent, peak_vram = args.budget_minutes * 60, prior, vram_mib() or 0
     settings = Settings(data_dir=Path(tempfile.mkdtemp(prefix="sf-eval-")))
     settings.ensure_dirs()
     rows, skipped = [], []
@@ -142,12 +152,13 @@ def main() -> int:
               "executed_cases": len(rows), "not_executed": skipped, "configs": [f"{r}={mm}" for r, mm in configs],
               "model_digests": digests, "prompt_hashes": {r: harness.prompt_hash(r) for r, _ in configs},
               "ollama_version": status.get("version"), "platform": platform.platform(),
-              "gpu_peak_vram_mib": peak_vram, "new_inference_minutes": round(spent / 60, 2),
+              "gpu_peak_vram_mib": peak_vram, "inference_minutes": round(spent / 60, 2),
+              "new_inference_minutes_this_run": round((spent - prior) / 60, 2),
               "budget_minutes": args.budget_minutes, "wall_minutes": round((time.time() - t_start) / 60, 2),
               "execution_backend": args.execution, "summary": summary, "cases": rows}
     (RESULTS / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(f"\nexecuted {len(rows)} cases; {len(skipped)} (case, config) pairs not executed (budget); "
-          f"new inference {spent / 60:.1f} min; report: {RESULTS / 'report.json'}")
+          f"inference {spent / 60:.1f} min cumulative ({(spent - prior) / 60:.1f} new); report: {RESULTS / 'report.json'}")
     for label, e in summary.items():
         p = e["pipeline"]
         print(f"{label:<60} raw FA={e['raw']['false_approvals']} FB={e['raw']['false_blocks']} | pipeline "

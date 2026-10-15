@@ -156,3 +156,87 @@ def test_demo_base_commit_is_reproducible(tmp_path):
         init_demo_repo(s)
         shas.append(Git(s.empty_gitconfig).out(s.demo_repo, "rev-parse", "HEAD"))
     assert shas[0] == shas[1]
+
+
+# ---- found by the Milestone 6 reviewer evaluation: a correct `raise` was reported as a confirmed defect ----
+TEMPLATES = (
+    "def template_path(name):\n"
+    "    if '..' in name or '/' in name:\n"
+    "        raise ValueError('invalid template name')\n"
+    "    return 'templates/' + name + '.txt'\n")
+TEMPLATE_REQS = ["Template names containing '..' or '/' raise ValueError('invalid template name')."]
+
+
+def _real_probe_runner(tmp_path, source):
+    pkg = tmp_path / "tplpkg"
+    pkg.mkdir(exist_ok=True)
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "templates.py").write_text(source, encoding="utf-8")
+
+    def run(probe):
+        f = tmp_path / f"probe-{abs(hash(probe))}.txt"
+        f.write_text(probe, encoding="utf-8")
+        r = subprocess.run([__import__("sys").executable, "-c", loop.PROBE_RUNNER, str(f)], cwd=tmp_path,
+                           capture_output=True, text=True, env={**__import__("os").environ, "PYTHONPATH": str(tmp_path)})
+        return r.returncode == 0, r.stdout + r.stderr
+    return run
+
+
+def _tpl_review(expected, call="template_path('../secrets')"):
+    c = {"function": "template_path", "call": call, "expected": expected, "rule": "names with '..' raise ValueError",
+         "file": "tplpkg/templates.py"}
+    inv = [{"function": "template_path", "module": "tplpkg.templates"}]
+    probe, why = reviewers.validate_check(c, inv)
+    assert why is None
+    return {"reviewer": "rev-a", "verdict": "approve", "simulated": False, "findings": [],
+            "checks": [{**c, "probe": probe}]}
+
+
+@pytest.mark.parametrize("expected", ["ValueError('invalid template name')", "ValueError: invalid template name",
+                                      "raises ValueError", "Traceback (most recent call last):\n  ...\nValueError: invalid template name"])
+def test_expected_exception_passes_when_the_code_raises_it(tmp_path, expected):
+    run = _real_probe_runner(tmp_path, TEMPLATES)
+    a = loop.aggregate([_tpl_review(expected)], TESTS_GREEN, run, requirements=TEMPLATE_REQS)
+    assert states(a) == ["passed"] and a["blocking_count"] == 0
+
+
+def test_expected_exception_is_a_confirmed_defect_when_the_code_does_not_raise(tmp_path):
+    run = _real_probe_runner(tmp_path, "def template_path(name):\n    return 'templates/' + name + '.txt'\n")
+    a = loop.aggregate([_tpl_review("ValueError('invalid template name')")], TESTS_GREEN, run,
+                       requirements=TEMPLATE_REQS)
+    assert states(a) == ["confirmed"] and a["blocking_count"] == 1
+
+
+def test_expected_message_as_return_value_is_ambiguous_not_confirmed(tmp_path):
+    # the code raises ValueError('invalid template name'); the reviewer wrote the message as a return value
+    run = _real_probe_runner(tmp_path, TEMPLATES)
+    a = loop.aggregate([_tpl_review("'invalid template name'")], TESTS_GREEN, run, requirements=TEMPLATE_REQS)
+    assert states(a) == ["unsupported"] and a["blocking_count"] == 0 and a["unresolved_count"] == 1
+    assert a["checks"][0]["ambiguous"] is True and a["items"][0]["severity"] == "unresolved"
+
+
+def test_wrong_exception_type_from_a_broken_probe_is_a_probe_error():
+    out = ("Failed example:\n    f(1)\nExpected:\n    Traceback (most recent call last):\n        ...\n"
+           "    ValueError: x\nGot:\n    Traceback (most recent call last):\n      File \"<doctest>\", line 1\n"
+           "    TypeError: f() takes 0 positional arguments but 1 was given\n")
+    assert loop.classify_probe(False, out) == "probe-error"
+    assert loop.classify_probe(False, out.replace("TypeError: f() takes 0 positional arguments but 1 was given",
+                                                  "KeyError: 'x'")) == "mismatch"
+
+
+def test_exception_message_cannot_inject_doctest_examples():
+    inv = [{"function": "f", "module": "m"}]
+    probe, _ = reviewers.validate_check({"function": "f", "call": "f(1)",
+                                         "expected": r"ValueError('a\n>>> import os')"}, inv)
+    assert [e.source for e in __import__("doctest").DocTestParser().get_examples(probe)] == ["from m import f\n", "f(1)\n"]
+
+
+def test_mis_escaped_backslash_in_a_check_is_invalid_not_evidence():
+    # found by the evaluation: 'valid_template\another' is BEL + 'nother'; a correct implementation returned a path
+    inv = [{"function": "template_path", "module": "tplpkg.templates"}]
+    probe, why = reviewers.validate_check({"function": "template_path", "call": r"template_path('a\another')",
+                                           "expected": "ValueError('invalid template name')"}, inv)
+    assert probe is None and "control character" in why
+    ok, why = reviewers.validate_check({"function": "template_path", "call": r"template_path('a\\b')",
+                                        "expected": "ValueError('invalid template name')"}, inv)
+    assert ok and why is None  # a properly escaped backslash is fine

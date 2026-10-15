@@ -69,8 +69,8 @@ def test_report_renderer_uses_only_recorded_numbers_and_lists_unexecuted_pairs()
     dec = {"raw": "approve", "pipeline": "escalate"}
     fixture = {  # test fixture, not a result: shape of evaluation/results/report.json
         "dataset_cases": 2, "executed_cases": 2, "configs": ["ollama-a=m1"], "model_digests": {"m1": "abc"},
-        "prompt_hashes": {"ollama-a": "p"}, "new_inference_minutes": 0.1, "budget_minutes": 1, "wall_minutes": 0.2,
-        "execution_backend": "local", "not_executed": [{"case": "c2", "config": "ollama-a=m1"}],
+        "prompt_hashes": {"ollama-a": "p"}, "budget_minutes": 1, "wall_minutes": 0.2,
+        "inference_minutes": 0.1, "new_inference_minutes_this_run": 0.0, "execution_backend": "local", "not_executed": [{"case": "c2", "config": "ollama-a=m1"}],
         "summary": {"ollama-a=m1": {"raw": {}, "pipeline": {"cases": 1}, "latency_s": {"mean": 1.0, "p95": 1.0},
                                     "tokens": {"input_mean": 10, "output_mean": 5}, "errors": 0}},
         "cases": [{"case": "c1", "category": "x", "expected_blocking": True,
@@ -80,3 +80,20 @@ def test_report_renderer_uses_only_recorded_numbers_and_lists_unexecuted_pairs()
     assert "Comparable subset: 1 cases" in md
     assert "| c2 | x | approve | not run |" in md
     assert "- `ollama-a=m1`: c2" in md and "one provider" in md
+
+
+def test_inference_budget_is_cumulative_across_runs():
+    from evaluation.run import prior_inference_seconds
+    cache = {"k1": {"role": "ollama-a", "model": "m1", "digest": "d1", "case": "c1", "review": {"seconds": 1000}},
+             "k2": {"role": "ollama-a", "model": "m1", "digest": "OLD", "case": "c1", "review": {"seconds": 50}},
+             "k3": {"role": "ollama-b", "model": "m2", "digest": "d2", "case": "c2", "review": {"seconds": 900}}}
+    assert prior_inference_seconds(cache, [("ollama-a", "m1", "d1"), ("ollama-b", "m2", "d2")], ["c1", "c2"]) == 1900
+    assert prior_inference_seconds(cache, [("ollama-a", "m1", "d1")], ["c2"]) == 0  # other cases do not count
+
+
+def test_cached_reviews_are_rescored_with_current_check_validation():
+    bundle = {"files_after": {"shopcart/checkout.py": "def shipping_cost(total):\n    return 0.0\n"}}
+    stale = {"reviewer": "ollama-a", "checks": [{"function": "shipping_cost", "call": "shipping_cost(-1)",
+                                                 "expected": "ValueError('negative')", "probe": "STALE", "valid": True}]}
+    fresh = harness.revalidate(stale, bundle)
+    assert "Traceback (most recent call last)" in fresh["checks"][0]["probe"] and stale["checks"][0]["probe"] == "STALE"

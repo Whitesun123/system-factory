@@ -37,12 +37,23 @@ PROBE_SETUP_ERRORS = ("NameError", "ImportError", "ModuleNotFoundError", "Syntax
                       "AttributeError", "TypeError")
 
 
+def raised_exception(output: str) -> tuple[str, str] | None:
+    """(name, message) of the last exception line in doctest output, if any."""
+    found = re.findall(r"^\s*([A-Za-z_][\w.]*(?:Error|Exception|Warning|Exit|Interrupt))(?::\s?(.*))?$", output, re.M)
+    return (found[-1][0], found[-1][1].strip()) if found else None
+
+
 def classify_probe(ok: bool, output: str) -> str:
     """pass | mismatch (wrong result: the defect is real) | exception (code raised at runtime) |
     probe-error (the probe itself is broken: bad import/name/signature) | invalid (no runnable example)."""
     if ok:
         return "pass"  # includes a probe with no runnable examples: it proves nothing either way
     if "Expected:" in output and "Got:" in output and "Exception raised" not in output:
+        got = output.split("Got:", 1)[1]
+        if "Traceback (most recent call last)" in got:  # an exception was expected, a different one was raised
+            name = (raised_exception(got) or ("", ""))[0]
+            if name.split(".")[-1] in PROBE_SETUP_ERRORS:
+                return "probe-error"
         return "mismatch"
     m = re.search(r"Exception raised:[\s\S]*?\n\s*(\w+(?:\.\w+)*):", output)
     if m:
@@ -169,6 +180,17 @@ def ground(claim: str, expected: str | None, sentences: list[str] | None) -> str
     return best if score >= 0.5 else None
 
 
+def _expects_the_raised_message(expected: str | None, output: str) -> bool:
+    raised = raised_exception(output.split("Exception raised:", 1)[-1])
+    if not raised or not expected:
+        return False
+    try:
+        value = ast.literal_eval(expected.strip())
+    except (ValueError, SyntaxError):
+        value = expected.strip()
+    return isinstance(value, str) and value.strip() == raised[1]
+
+
 def _probe_key(probe: str) -> tuple[str, str] | None:
     """(normalised call, normalised expected) from a single-call doctest probe."""
     lines = [ln for ln in probe.strip().splitlines() if ln.strip()]
@@ -248,7 +270,12 @@ def aggregate(reviews: list[dict], tests: dict, confirm_probe: Callable[[str], t
             continue
         justification = ground(row.get("rule") or "", row.get("expected"), sentences)
         row["grounding"] = justification
-        if row.get("conflicting"):
+        if row["outcome"] == "exception" and _expects_the_raised_message(row.get("expected"), row.get("output") or ""):
+            # The code raised an exception whose message IS the expected value: the reviewer most likely meant
+            # "raises" and wrote the message as a return value. Ambiguous evidence is never confirmed.
+            row["ambiguous"] = True
+            state, sev = "unsupported", "unresolved"
+        elif row.get("conflicting"):
             state, sev = "conflicting", "unresolved"
         elif justification or row.get("corroborated_by"):
             state, sev = "confirmed", "blocking"
@@ -258,7 +285,9 @@ def aggregate(reviews: list[dict], tests: dict, confirm_probe: Callable[[str], t
         why = {"confirmed": f"Justified by: \"{(justification or '')[:160]}\"" if justification and justification != "grounding not applied"
                else (f"Corroborated by {', '.join(row['corroborated_by'])}" if row.get("corroborated_by") else ""),
                "conflicting": "Reviewers expect different results for this call; a human must decide which is right.",
-               "unsupported": "The expected value is not traceable to the issue, acceptance criteria or documentation."}[state]
+               "unsupported": "The expected value equals the message of the exception the code raised: the check is "
+                              "ambiguous (a return value or an exception?)." if row.get("ambiguous") else
+                              "The expected value is not traceable to the issue, acceptance criteria or documentation."}[state]
         f = _norm({"severity": "major", "rule": "reviewer-check", "file": row.get("file"), "function": row["function"],
                    "probe": row["probe"], "title": f"Specification check failed: {row['call']} should be {row['expected']}",
                    "detail": f"Executed against the patched code: returned {row['got'] or row['outcome']}. "
