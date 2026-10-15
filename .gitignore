@@ -24,3 +24,6 @@ examples/reviewer-benchmark/*.json
 *.log
 *.zip
 data-real-demo/
+
+# Private planning brief (kept locally, never published)
+SYSTEM_FACTORY_HANDOFF.md
