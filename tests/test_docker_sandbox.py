@@ -3,9 +3,7 @@
 Skipped when no Docker daemon / sandbox image is available (e.g. GitHub's Windows runners). The fail-closed tests at
 the bottom run everywhere and need no Docker.
 """
-import os
 import subprocess
-import sys
 import time
 
 import pytest

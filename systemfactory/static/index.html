@@ -114,6 +114,30 @@ summary { cursor: pointer; font-weight: 600; font-size: 13px; }
 .empty { color: var(--muted); padding: 30px 0; text-align: center; }
 .check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink); margin: 8px 0 0; }
 .check input { width: auto; }
+
+/* ---- Milestone 6: loop flow, budget, comparison, accessibility ---- */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.flow { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; margin: 12px 0 4px; }
+.flow .node { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; min-width: 104px; background: var(--panel); }
+.flow .node .t { font-size: 12px; font-weight: 600; } .flow .node .m { font-size: 11px; color: var(--muted); }
+.flow .node.active { border-color: var(--info); box-shadow: 0 0 0 2px var(--info-bg); }
+.flow .node.done { border-color: var(--ok); } .flow .node.bad { border-color: var(--bad); }
+.flow .link { align-self: center; color: var(--muted); padding: 0 4px; font-size: 14px; }
+.flow .loopback { flex-basis: 100%; font-size: 11px; color: var(--muted); margin: 2px 0 0 4px; }
+.budget { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px 14px; margin: 8px 0; }
+.budget .b { font-size: 11px; color: var(--muted); }
+.budget .bar { height: 6px; background: var(--idle-bg); border-radius: 3px; overflow: hidden; margin-top: 3px; }
+.budget .bar > span { display: block; height: 100%; background: var(--accent); }
+.budget .bar > span.hot { background: var(--bad); }
+.cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cmp > div { min-width: 0; }
+.trace { border-left: 3px solid var(--accent); padding: 4px 10px; margin: 6px 0; background: var(--bg); font-size: 13px; }
+.s-confirmed { background: var(--bad-bg); color: var(--bad); }
+.s-unsupported, .s-conflicting, .s-unresolved { background: var(--warn-bg); color: var(--warn); }
+.s-docker, .s-container { background: var(--ok-bg); color: var(--ok); } .s-local, .s-process { background: var(--warn-bg); color: var(--warn); }
+@media (min-width: 901px) and (max-width: 1100px) { main { grid-template-columns: minmax(260px, 320px) 1fr; } }
+main > * { min-width: 0; }
+@media (max-width: 900px) { .cmp { grid-template-columns: 1fr; } .flow .node { min-width: 88px; } }
 </style>
 </head>
 <body>
@@ -252,7 +276,7 @@ function renderIterations(d) {
         <div class="small muted">${esc(r.summary || r.error || "")}</div>
         ${(r.findings || []).map(f => `<div class="finding">${chip(f.severity)} ${esc(f.title)}<span class="d">${esc(f.detail || "")}</span></div>`).join("")}
         ${checksOf(r).length ? `<details><summary class="small">${checksOf(r).length} specification checks proposed · ${checksOf(r).filter(c => ["mismatch","exception"].includes(c.outcome)).length} failed when executed</summary>
-          <table class="compact">${checksOf(r).map(c => `<tr><td><code>${esc(c.call)}</code></td><td>→ <code>${esc(c.expected)}</code></td><td>${chip(c.outcome || "pending")}</td><td class="muted">${c.got ? "got " + esc(c.got) : ""}</td></tr>`).join("")}</table></details>` : ""}
+          <table class="compact">${checksOf(r).map(c => `<tr><td><code>${esc(c.call)}</code></td><td>→ <code>${esc(c.expected)}</code></td><td>${chip(c.evidence_state || c.outcome || "pending")}${c.invalid_reason ? `<span class="small muted"> ${esc(c.invalid_reason)}</span>` : ""}</td><td class="muted">${c.got ? "got " + esc(c.got) : ""}</td></tr>`).join("")}</table></details>` : ""}
       </div>`).join("") : `<span class="muted small">no reviews yet</span>`;
     const fbHtml = (fb.items || []).length ? fb.items.map(i => `<div class="fb">
         <b>${esc(i.id)}</b> ${chip(i.severity)} <code>${esc((i.location.file ? i.location.file + "::" : "") + i.location.where)}</code> — ${esc(i.title)}
@@ -274,6 +298,66 @@ function renderIterations(d) {
     return card + (idx < d.iterations.length - 1 ? `<div class="arrow">▼ feedback sent to the coding agent</div>` : "");
   }).join("") + (d.workflow.data.quality_gate ? `<div class="arrow">▼</div><div class="iter"><h3>Quality gate ${chip(d.workflow.data.quality_gate.status)}</h3>
       ${d.workflow.data.quality_gate.criteria.map(c => `<div class="small">${c.ok ? "✔" : "✘"} ${esc(c.criterion)} <span class="muted">— ${esc(c.note)}</span></div>`).join("")}</div>` : "");
+}
+
+
+function renderLoopFlow(d) {
+  // Status of each loop phase is derived from the real step/iteration records, not animated.
+  const w = d.workflow, it = d.iterations.at(-1), st = Object.fromEntries(d.steps.map(s => [s.name, s.status]));
+  if (!st.coding) return "";
+  const revs = it ? d.reviews.filter(r => r.iteration === it.n) : [];
+  const cls = (s) => s === "running" || s === "waiting" ? "active" : s === "succeeded" ? "done" : ["failed","blocked","cancelled"].includes(s) ? "bad" : "";
+  const fb = it?.feedback || {};
+  const node = (t, m, c) => `<div class="node ${c}" role="listitem"><div class="t">${t}</div><div class="m">${m}</div></div>`;
+  const [ra, rb] = revs;  // the panel records reviews in configured order: Reviewer A, then Reviewer B
+  return `<div class="flow" role="list" aria-label="Implementation loop">
+    ${node("Coding", it ? `iteration ${it.n} · ${esc(it.patch?.coder || "")}` : "", cls(st.coding))}<span class="link" aria-hidden="true">→</span>
+    ${node("Deterministic tests", it?.tests?.suite_summary ? esc(it.tests.suite_summary) : "", cls(st.testing))}<span class="link" aria-hidden="true">→</span>
+    ${node("Reviewer A", ra ? `${esc(ra.reviewer)} · ${esc(ra.model)} · ${esc(ra.verdict)}` : "", cls(st.review))}
+    ${node("Reviewer B", rb ? `${esc(rb.reviewer)} · ${esc(rb.model)} · ${esc(rb.verdict)}` : "", cls(st.review))}<span class="link" aria-hidden="true">→</span>
+    ${node("Evidence verification", fb.checks ? `${fb.checks.filter(c => c.evidence_state === "confirmed").length} confirmed · ${fb.unresolved_count || 0} unresolved` : "", cls(st.feedback))}<span class="link" aria-hidden="true">→</span>
+    ${node("Decision", it?.decision ? esc(it.decision) : "", it?.decision === "revise" ? "active" : cls(st.feedback))}<span class="link" aria-hidden="true">→</span>
+    ${node("Quality gate", w.data.quality_gate ? esc(w.data.quality_gate.status) : "", cls(st.quality_gate))}<span class="link" aria-hidden="true">→</span>
+    ${node("Human approval", d.approvals.length ? esc(d.approvals.at(-1).decision) : (st.approval === "waiting" ? "waiting" : ""), cls(st.approval))}
+    <div class="loopback">↺ a <b>revise</b> decision sends the verified findings back to Coding (${d.iterations.filter(i => i.decision === "revise").length} revision(s) so far)</div></div>`;
+}
+
+function renderBudget(d) {
+  const w = d.workflow, b = w.budget || {}, u = w.usage || {};
+  const its = d.iterations.length, started = d.iterations[0]?.started_at, last = d.iterations.at(-1);
+  const loopS = started ? ((last?.finished_at || Date.now() / 1000) - started) : 0;
+  const rows = [["iterations", its, b.max_iterations], ["test runs", u.test_runs || 0, b.max_test_runs],
+    ["repair candidates", u.candidate_evals || 0, b.max_candidate_evals], ["LLM tokens", u.llm_tokens || 0, b.max_llm_tokens],
+    ["loop seconds", Math.round(loopS), b.max_loop_seconds], ["cost $", (u.cost_usd || 0).toFixed(2), b.max_cost_usd]];
+  return `<div class="budget" aria-label="Budget usage">${rows.map(([k, v, max]) => {
+    const pct = max ? Math.min(100, (Number(v) / Number(max)) * 100) : 0;
+    return `<div><div class="b">${k}: <b>${esc(v)}</b> / ${esc(max ?? "–")}</div><div class="bar" role="progressbar" aria-label="${k}" aria-valuenow="${pct.toFixed(0)}" aria-valuemin="0" aria-valuemax="100"><span class="${pct >= 90 ? "hot" : ""}" style="width:${pct.toFixed(1)}%"></span></div></div>`;
+  }).join("")}</div>`;
+}
+
+function renderCompare(d) {
+  if (d.iterations.length < 2) return `<div class="empty">Comparison needs at least two iterations; this workflow had ${d.iterations.length}.</div>`;
+  const patch = (n) => [...d.evidence].reverse().find(e => e.kind === "patch" && e.data && e.data.iteration === n);
+  const pairs = [];
+  for (let i = 1; i < d.iterations.length; i++) pairs.push([d.iterations[i - 1], d.iterations[i]]);
+  return pairs.map(([a, b]) => {
+    const found = (a.feedback?.items || []).filter(x => x.severity === "blocking");
+    const addressed = new Set(b.patch?.addressed || []);
+    const probes = Object.fromEntries((b.tests?.probes || []).map(p => [p.source.trim(), p.passed]));
+    const trace = found.map(x => {
+      const ps = x.probes.map(p => probes[p.trim()]);
+      const fixed = ps.length && ps.every(v => v === true);
+      return `<div class="trace"><b>${esc(x.id)}</b> found in iteration ${a.n}: ${esc(x.title)}
+        <div class="small muted">evidence: ${esc((x.evidence_states || []).join(", "))} · sources: ${esc(x.sources.join(", "))}</div>
+        <div class="small">${addressed.has(x.id) ? `iteration ${b.n} addressed ${esc(x.id)}` : `iteration ${b.n} did not claim ${esc(x.id)}`}
+        · required probe(s) in iteration ${b.n}: ${ps.length ? (fixed ? chip("passed") : chip("FAILED")) : "none"}</div></div>`;
+    }).join("") || `<div class="muted small">Iteration ${a.n} had no blocking findings.</div>`;
+    const pa = patch(a.n), pb = patch(b.n);
+    return `<div class="iter"><h3>Iteration ${a.n} → ${b.n} ${chip(a.decision || a.status)} → ${chip(b.decision || b.status)}</h3>
+      <div class="small muted">why the revision happened: ${esc(a.decision_reason || "")}</div>${trace}
+      <div class="cmp"><div><b class="small">Iteration ${a.n} patch</b>${pa ? renderDiff(pa.content) : '<div class="muted small">no patch</div>'}</div>
+      <div><b class="small">Iteration ${b.n} patch</b>${pb ? renderDiff(pb.content) : '<div class="muted small">no patch</div>'}</div></div></div>`;
+  }).join("");
 }
 
 function renderDetail(d) {
@@ -315,7 +399,9 @@ function renderDetail(d) {
     ["Options", JSON.stringify(w.options)]].map(([k, v]) => `<div>${k}</div><div>${esc(v)}</div>`).join("");
 
   let body = "";
-  if (tab === "iterations") {
+  if (tab === "compare") {
+    body = renderCompare(d);
+  } else if (tab === "iterations") {
     body = d.iterations.length ? renderIterations(d) : `<div class="empty">No coding/review iterations for this workflow${w.kind === "support" ? " (support work has no code loop)" : " yet"}.</div>`;
   } else if (tab === "evidence") {
     body = d.evidence.length ? d.evidence.map(e => `<details data-ev="${e.id}" ${openDetails.has(String(e.id)) ? "open" : ""}>
@@ -356,14 +442,17 @@ function renderDetail(d) {
   $("#detail").innerHTML = `
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><h2 style="margin:0;text-transform:none;letter-spacing:0;font-size:16px;color:var(--ink)">#${w.id} ${esc(w.issue_title)}</h2>${chip(w.state)}
       ${w.options.runtime === "ollama" ? `<span class="st s-real">REAL LOCAL INFERENCE</span>` : `<span class="st s-sim">SIMULATED</span>`}
+      <span class="st s-${esc(w.options.execution || "local")}" title="execution backend for tests and checks">${(w.options.execution || "local") === "docker" ? "DOCKER SANDBOX" : "LOCAL PROCESS (weak isolation)"}</span>
       <a href="/api/workflows/${w.id}/export" style="margin-left:auto"><button>Export evidence (.zip)</button></a></div>
     ${banner}${actions.join("")}
     ${loopLine}
+    ${renderLoopFlow(d)}
+    ${d.iterations.length ? renderBudget(d) : ""}
     <div class="pipeline">${steps}</div>
     <div class="kv">${kv}</div>
     <div class="row">${btns.join("")}</div>
     <details style="margin-top:10px"><summary>Original issue</summary><pre style="white-space:pre-wrap">${esc(w.issue_body)}</pre></details>
-    <div class="tabs">${["iterations","agents","evidence","diff","log","attempts","data"].map(t => `<button data-tab="${t}" class="${t === tab ? "on" : ""}">${t}</button>`).join("")}</div>
+    <div class="tabs" role="tablist" aria-label="Workflow details">${["iterations","compare","agents","evidence","diff","log","attempts","data"].map(t => `<button role="tab" aria-selected="${t === tab}" data-tab="${t}" class="${t === tab ? "on" : ""}">${t}</button>`).join("")}</div>
     <div style="margin-top:10px">${body}</div>`;
 
   document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { tab = b.dataset.tab; lastDetail = ""; refreshDetail(); });

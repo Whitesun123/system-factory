@@ -81,7 +81,7 @@ class Orchestrator:
 
     def _drive(self, wf_id: int) -> str:
         while True:
-            wf = self.store.get_workflow(wf_id)
+            wf = self.store.workflow(wf_id)
             if wf["state"] != WF.RUNNING:
                 return wf["state"]
             if wf["cancel_requested"]:
@@ -103,19 +103,21 @@ class Orchestrator:
                 return WF.AWAITING_APPROVAL
             outcome = self._run_step(wf, step)
             if outcome != STEP.SUCCEEDED:
-                return self.store.get_workflow(wf_id)["state"]
+                return self.store.workflow(wf_id)["state"]
             if step["name"] == "triage":
-                kind = self.store.get_workflow(wf_id)["kind"]
+                kind = self.store.workflow(wf_id)["kind"]
                 self.store.add_steps(wf_id, PIPELINES[kind][1:])
                 self.store.log(wf_id, f"Pipeline for {kind}: " + " -> ".join(n for n, _ in PIPELINES[kind]))
             if step["name"] == "feedback":
-                decision = self.store.get_step(wf_id, "feedback")["output"].get("decision")
+                decision = self.store.step(wf_id, "feedback")["output"].get("decision")
                 if decision == "revise":
                     self._loop_back(wf_id)
 
     def _loop_back(self, wf_id: int) -> None:
         """Re-arm the implementation-loop steps so the next iteration starts at coding."""
         it = self.store.current_iteration(wf_id)
+        if it is None:
+            raise RuntimeError(f"workflow {wf_id}: loop-back requested without an iteration")
         for s in self.store.get_steps(wf_id):
             if s["name"] in LOOP_STEPS:
                 self.store.update_step(s["id"], status=STEP.PENDING, attempts=0, error=None,
@@ -255,7 +257,7 @@ class Orchestrator:
         self.store.transition(wf_id, WF.APPROVED if decision == "approved" else WF.REJECTED,
                               actor=f"human:{actor.strip()}", reason=comment or decision)
         self.store.record_approval(wf_id, decision, actor.strip(), comment)
-        step = self.store.get_step(wf_id, "approval")
+        step = self.store.step(wf_id, "approval")
         self.store.update_step(step["id"], status=STEP.SUCCEEDED, finished_at=time.time(),
                                output={"decision": decision, "actor": actor.strip(), "comment": comment})
         if decision == "approved" and wf.get("branch"):
@@ -288,10 +290,7 @@ class Orchestrator:
         self.store.transition(wf_id, WF.QUEUED, actor=f"human:{actor}", reason="manual retry")
 
     def _get(self, wf_id: int) -> dict:
-        wf = self.store.get_workflow(wf_id)
-        if wf is None:
-            raise KeyError(f"workflow {wf_id} not found")
-        return wf
+        return self.store.workflow(wf_id)  # raises KeyError for an unknown workflow
 
 
 class Worker:

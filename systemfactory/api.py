@@ -88,11 +88,11 @@ def create_app(settings: Settings | None = None, *, start_worker: bool = True) -
         try:
             return fn(*args, **kwargs)
         except KeyError as e:
-            raise HTTPException(404, str(e))
+            raise HTTPException(404, str(e)) from e
         except IllegalTransition as e:
-            raise HTTPException(409, str(e))
+            raise HTTPException(409, str(e)) from e
         except ValueError as e:
-            raise HTTPException(400, str(e))
+            raise HTTPException(400, str(e)) from e
 
     @app.get("/", include_in_schema=False)
     def index():
@@ -181,21 +181,21 @@ def create_app(settings: Settings | None = None, *, start_worker: bool = True) -
     @app.post("/api/workflows/{wf_id}/approve")
     def approve(wf_id: int, d: DecisionIn):
         guard(orch.approve, wf_id, d.actor, d.comment)
-        return {"state": orch.store.get_workflow(wf_id)["state"]}
+        return {"state": orch.store.workflow(wf_id)["state"]}
 
     @app.post("/api/workflows/{wf_id}/reject")
     def reject(wf_id: int, d: DecisionIn):
         guard(orch.reject, wf_id, d.actor, d.comment)
-        return {"state": orch.store.get_workflow(wf_id)["state"]}
+        return {"state": orch.store.workflow(wf_id)["state"]}
 
     @app.post("/api/workflows/{wf_id}/cancel")
     def cancel(wf_id: int):
         guard(orch.cancel, wf_id, "dashboard")
-        return {"state": orch.store.get_workflow(wf_id)["state"]}
+        return {"state": orch.store.workflow(wf_id)["state"]}
 
     @app.post("/api/workflows/{wf_id}/retry")
     def retry(wf_id: int):
         guard(orch.retry, wf_id, "dashboard")
-        return {"state": orch.store.get_workflow(wf_id)["state"]}
+        return {"state": orch.store.workflow(wf_id)["state"]}
 
     return app

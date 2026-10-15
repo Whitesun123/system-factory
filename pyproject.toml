@@ -17,3 +17,25 @@ claude = ["anthropic"]
 testpaths = ["tests"]
 norecursedirs = ["demo", "data", ".git", "scripts"]
 markers = ["ollama: needs a running Ollama server with the configured models (skipped by default)"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B"]
+ignore = ["E501"]  # long lines are a style choice here; everything else is enforced in CI
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = true
+check_untyped_defs = true
+
+[tool.coverage.run]
+source = ["systemfactory", "evaluation"]
+branch = true
+
+[tool.coverage.report]
+show_missing = false
+skip_covered = false

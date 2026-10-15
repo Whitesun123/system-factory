@@ -219,6 +219,23 @@ def _row(row: sqlite3.Row | None) -> dict | None:
     return out
 
 
+def _required(row: sqlite3.Row | None, what: str) -> dict:
+    out = _row(row)
+    if out is None:
+        raise KeyError(f"{what} not found")
+    return out
+
+
+def _rows(rows: list[sqlite3.Row]) -> list[dict]:
+    return [r for r in (_row(x) for x in rows) if r is not None]
+
+
+def _rowid(cur: sqlite3.Cursor) -> int:
+    if cur.lastrowid is None:
+        raise RuntimeError("INSERT did not return a row id")
+    return cur.lastrowid
+
+
 class Store:
     def __init__(self, path: Path | str):
         self.path = str(path)
@@ -266,15 +283,15 @@ class Store:
                         options: dict | None = None, budget: dict | None = None) -> int:
         ts = _now()
         with self.tx() as c:
-            issue_id = c.execute(
+            issue_id = _rowid(c.execute(
                 "INSERT INTO issues(title, body, source, created_at) VALUES (?,?,?,?)",
-                (title, body, source, ts)).lastrowid
-            wf_id = c.execute(
+                (title, body, source, ts)))
+            wf_id = _rowid(c.execute(
                 "INSERT INTO workflows(issue_id, repo, state, options, budget, usage, created_at, updated_at)"
                 " VALUES (?,?,?,?,?,?,?,?)",
                 (issue_id, repo, WF.QUEUED, json.dumps(options or {}), json.dumps(budget or {}),
                  json.dumps({"candidate_evals": 0, "test_runs": 0, "llm_tokens": 0, "cost_usd": 0.0}),
-                 ts, ts)).lastrowid
+                 ts, ts)))
             self._event(c, wf_id, "info", None, "intake", f"Issue #{issue_id} received from {source}: {title}")
         return wf_id
 
@@ -285,6 +302,13 @@ class Store:
                 " FROM workflows w JOIN issues i ON i.id = w.issue_id WHERE w.id = ?", (wf_id,)).fetchone()
         return _row(row)
 
+    def workflow(self, wf_id: int) -> dict:
+        """The workflow, or KeyError: control-plane code must not continue on a missing workflow."""
+        wf = self.get_workflow(wf_id)
+        if wf is None:
+            raise KeyError(f"workflow {wf_id} not found")
+        return wf
+
     def list_workflows(self, limit: int = 200) -> list[dict]:
         with self._conn() as c:
             rows = c.execute(
@@ -292,7 +316,7 @@ class Store:
                 " (SELECT COALESCE(SUM(attempts),0) FROM steps s WHERE s.workflow_id = w.id) AS total_attempts"
                 " FROM workflows w JOIN issues i ON i.id = w.issue_id ORDER BY w.id DESC LIMIT ?",
                 (limit,)).fetchall()
-        return [_row(r) for r in rows]
+        return _rows(rows)
 
     def update_workflow(self, wf_id: int, **fields: Any) -> None:
         if not fields:
@@ -416,7 +440,14 @@ class Store:
     def get_steps(self, wf_id: int) -> list[dict]:
         with self._conn() as c:
             rows = c.execute("SELECT * FROM steps WHERE workflow_id = ? ORDER BY seq", (wf_id,)).fetchall()
-        return [_row(r) for r in rows]
+        return _rows(rows)
+
+    def step(self, wf_id: int, name: str) -> dict:
+        """The named step, or KeyError."""
+        s = self.get_step(wf_id, name)
+        if s is None:
+            raise KeyError(f"step {name!r} of workflow {wf_id} not found")
+        return s
 
     def get_step(self, wf_id: int, name: str) -> dict | None:
         with self._conn() as c:
@@ -432,8 +463,8 @@ class Store:
     def start_attempt(self, wf_id: int, step_id: int, n: int, iteration: int | None = None) -> int:
         with self.tx() as c:
             c.execute("UPDATE steps SET attempts = ? WHERE id = ?", (n, step_id))
-            return c.execute("INSERT INTO attempts(step_id, workflow_id, n, status, started_at, iteration)"
-                             " VALUES (?,?,?,?,?,?)", (step_id, wf_id, n, "running", _now(), iteration)).lastrowid
+            return _rowid(c.execute("INSERT INTO attempts(step_id, workflow_id, n, status, started_at, iteration)"
+                             " VALUES (?,?,?,?,?,?)", (step_id, wf_id, n, "running", _now(), iteration)))
 
     def finish_attempt(self, attempt_id: int, status: str, error: str | None = None,
                        detail: dict | None = None) -> None:
@@ -445,7 +476,7 @@ class Store:
         with self._conn() as c:
             rows = c.execute("SELECT a.*, s.name AS step FROM attempts a JOIN steps s ON s.id = a.step_id"
                              " WHERE a.workflow_id = ? ORDER BY a.id", (wf_id,)).fetchall()
-        return [_row(r) for r in rows]
+        return _rows(rows)
 
     # ---------------------------------------------------------------- implementation-loop iterations
     def open_iteration(self, wf_id: int) -> dict:
@@ -454,13 +485,14 @@ class Store:
             row = c.execute("SELECT * FROM iterations WHERE workflow_id = ? ORDER BY n DESC LIMIT 1",
                             (wf_id,)).fetchone()
             if row is not None and row["status"] in ITERATION_OPEN:
-                return _row(row)
+                return _required(row, f"iteration of workflow {wf_id}")
             n = (row["n"] if row else 0) + 1
             c.execute("INSERT INTO iterations(workflow_id, n, status, started_at) VALUES (?,?,?,?)",
                       (wf_id, n, IT.CODING, _now()))
             self._event(c, wf_id, "info", "coding", "orchestrator", f"Iteration {n} started",
                         {"iteration": n})
-            return _row(c.execute("SELECT * FROM iterations WHERE workflow_id = ? AND n = ?", (wf_id, n)).fetchone())
+            return _required(c.execute("SELECT * FROM iterations WHERE workflow_id = ? AND n = ?", (wf_id, n)).fetchone(),
+                             f"iteration {n} of workflow {wf_id}")
 
     def current_iteration(self, wf_id: int) -> dict | None:
         with self._conn() as c:
@@ -470,7 +502,7 @@ class Store:
     def get_iterations(self, wf_id: int) -> list[dict]:
         with self._conn() as c:
             rows = c.execute("SELECT * FROM iterations WHERE workflow_id = ? ORDER BY n", (wf_id,)).fetchall()
-        return [_row(r) for r in rows]
+        return _rows(rows)
 
     def update_iteration(self, wf_id: int, n: int, *, status: str | None = None, **fields: Any) -> None:
         """Update an iteration; a status change is validated against ITERATION_TRANSITIONS."""
@@ -517,7 +549,7 @@ class Store:
             q, args = q + " AND iteration = ?", args + [iteration]
         with self._conn() as c:
             rows = c.execute(q + " ORDER BY id", args).fetchall()
-        out = [_row(r) for r in rows]
+        out = _rows(rows)
         for r in out:
             r["simulated"] = bool(r["simulated"])
         return out
@@ -532,14 +564,14 @@ class Store:
         cols = [c for c in self._LLM_COLS if c in rec]
         vals = [json.dumps(rec[c]) if c in JSON_COLUMNS else rec[c] for c in cols]
         with self._conn() as c:
-            return c.execute(f"INSERT INTO llm_calls({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
-                             vals).lastrowid
+            return _rowid(c.execute(f"INSERT INTO llm_calls({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
+                             vals))
 
     def get_llm_calls(self, wf_id: int, with_text: bool = False) -> list[dict]:
         cols = "*" if with_text else ", ".join(c for c in ["id", *self._LLM_COLS] if c not in ("prompt", "response"))
         with self._conn() as c:
             rows = c.execute(f"SELECT {cols} FROM llm_calls WHERE workflow_id = ? ORDER BY id", (wf_id,)).fetchall()
-        return [_row(r) for r in rows]
+        return _rows(rows)
 
     def get_llm_call(self, call_id: int) -> dict | None:
         with self._conn() as c:
@@ -556,7 +588,7 @@ class Store:
     def get_tool_calls(self, wf_id: int) -> list[dict]:
         with self._conn() as c:
             rows = c.execute("SELECT * FROM tool_calls WHERE workflow_id = ? ORDER BY id", (wf_id,)).fetchall()
-        out = [_row(r) for r in rows]
+        out = _rows(rows)
         for r in out:
             r["ok"] = bool(r["ok"])
         return out
@@ -574,7 +606,7 @@ class Store:
     def get_test_runs(self, wf_id: int) -> list[dict]:
         with self._conn() as c:
             rows = c.execute("SELECT * FROM test_runs WHERE workflow_id = ? ORDER BY id", (wf_id,)).fetchall()
-        out = [_row(r) for r in rows]
+        out = _rows(rows)
         for r in out:
             r["timed_out"] = bool(r["timed_out"])
         return out
@@ -595,19 +627,19 @@ class Store:
         with self._conn() as c:
             rows = c.execute("SELECT * FROM events WHERE workflow_id = ? AND id > ? ORDER BY id",
                              (wf_id, after_id)).fetchall()
-        return [_row(r) for r in rows]
+        return _rows(rows)
 
     def add_evidence(self, wf_id: int, step: str, kind: str, title: str, content: str,
                      data: dict | None = None) -> int:
         with self._conn() as c:
-            return c.execute("INSERT INTO evidence(workflow_id, step, kind, title, content, data, created_at)"
+            return _rowid(c.execute("INSERT INTO evidence(workflow_id, step, kind, title, content, data, created_at)"
                              " VALUES (?,?,?,?,?,?,?)",
-                             (wf_id, step, kind, title, content, json.dumps(data or {}), _now())).lastrowid
+                             (wf_id, step, kind, title, content, json.dumps(data or {}), _now())))
 
     def get_evidence(self, wf_id: int) -> list[dict]:
         with self._conn() as c:
             rows = c.execute("SELECT * FROM evidence WHERE workflow_id = ? ORDER BY id", (wf_id,)).fetchall()
-        return [_row(r) for r in rows]
+        return _rows(rows)
 
     def record_approval(self, wf_id: int, decision: str, actor: str, comment: str = "") -> None:
         with self._conn() as c:
@@ -617,4 +649,4 @@ class Store:
     def get_approvals(self, wf_id: int) -> list[dict]:
         with self._conn() as c:
             rows = c.execute("SELECT * FROM approvals WHERE workflow_id = ? ORDER BY id", (wf_id,)).fetchall()
-        return [_row(r) for r in rows]
+        return _rows(rows)

@@ -238,7 +238,7 @@ Test names refer to files in `tests/`.
   never counts as confirmation.
 - **Reason / tradeoff:** Executed evidence is more reliable than a model's judgement in both directions. The cost:
   a wrong expected value produces a false block. That surfaces as a stall or escalation, not a bad merge.
-- **Evidence:** The benchmark (`scripts/eval_reviewers.py`, 5 labelled patches): phi4:14b went from 3/5 to 5/5 in
+- **Evidence:** The benchmark (`scripts/eval_reviewers.py`, since replaced by the `evaluation/` framework in Milestone 6; 5 labelled patches): phi4:14b went from 3/5 to 5/5 in
   both roles with no false blocks; the probe rule downgraded phi4's two false blockers on a correct patch.
   Offline tests: `test_confirmed_check_upgrades_and_unverified_llm_blocker_downgrades`, `test_check_to_probe_accepts_only_safe_calls`,
   `test_f1_multiline_expected_cannot_inject_doctest_lines`. Five cases is far too few to generalise from.
@@ -272,3 +272,39 @@ Test names refer to files in `tests/`.
   untrusted repositories still need a container, which is planned and not implemented.
 - **Evidence:** `tests/test_security_regressions.py` (F1–F6), `test_workspace_round_trip_preserves_crlf`,
   `test_workflow_succeeds_from_a_crlf_checkout`; GitHub Actions on Windows and Ubuntu.
+
+## D21. A fail-closed Docker execution backend for untrusted code (Milestone 6)
+
+- **Problem:** Through Milestone 5.1, tests, reproductions and reviewer probes ran as host processes. D20 hardened
+  that path but said plainly that it is not a security boundary, yet the real-LLM runtime executes model-written code.
+- **Solution:** `systemfactory/execution.py` defines an `ExecutionBackend` interface behind the single choke point
+  `StepContext.run_python`. `docker` runs every command in a fresh container with no network, a read-only root, the
+  worktree and probes mounted read-only, tmpfs `/tmp`, all capabilities dropped, `no-new-privileges`, uid 65534,
+  and PID/memory/CPU limits; the container is removed in a `finally`. The image is pinned by digest and its packages
+  by hash. The real runtime sets `require_isolation`; if Docker or the image is missing, the workflow is **blocked
+  before anything runs**. There is no fallback to `local`.
+- **Reason / tradeoff:** A container per command measured about 0.9 s per test command against about 0.6 s locally (Windows, Docker Desktop; `examples/evidence`), which is small next to model
+  latency. Containers share the host kernel, so this is not VM isolation. Git runs on the host but only reads files.
+  Dependency installation from the target repository is out of scope: the image contains only pytest (trust policy in
+  `sandbox/README.md`).
+- **Evidence:** `tests/test_docker_sandbox.py` runs harmless synthetic payloads that try to read host secrets, write
+  outside `/tmp`, reach the network, exceed PID and memory limits, and outlive a timeout or cancellation. Fail-closed
+  tests run without Docker. `examples/evidence/case-a-docker-isolated-execution/`.
+
+## D22. Evidence states and requirement grounding (Milestone 6)
+
+- **Problem:** In Milestone 5 a reviewer's failing probe made a finding blocking. A probe that fails proves only that
+  the code disagrees with the reviewer's *expectation*, and the expectation may itself be invented. Two reviewers
+  could also expect different results for the same call, and a review that looked at nothing still counted towards
+  the two-review minimum.
+- **Solution:** `loop.aggregate` classifies every claim as confirmed, unsupported, conflicting, unverified, invalid or
+  passed. A finding is confirmed only if its expected value is grounded in an authoritative requirement (issue text,
+  acceptance criteria, docstrings, README) by an exact quoted value, a whole sentence or a content-word overlap of at
+  least 50% and at least three words, or if a second reviewer independently expects the same value. Numbers and
+  substrings never ground. Unsupported or conflicting evidence ends the loop as **unresolved** (escalation), not as an
+  approval or an arbitrary block. Only reviews that inspected the change count. The quality gate also checks that the
+  reviewed commit is the final HEAD with a clean worktree.
+- **Reason / tradeoff:** Grounding is lexical, so a correct expectation phrased differently from the requirement is
+  escalated rather than trusted. That is the conservative failure mode: it costs a human look, not a wrong merge.
+- **Evidence:** `tests/test_evidence_states.py` (including the substring-grounding regression), and
+  `tests/test_quality_regressions.py`.

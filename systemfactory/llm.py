@@ -13,6 +13,7 @@ import os
 import re
 import time
 from dataclasses import dataclass, field
+from typing import Any
 
 import httpx
 
@@ -113,7 +114,8 @@ class OllamaClient:
 
     def status(self, models: list[str]) -> dict:
         """Availability report used by the dashboard, health endpoint and check script. Never raises."""
-        out = {"provider": "ollama", "url": self.base_url, "reachable": False, "version": None, "models": {}}
+        out: dict[str, Any] = {"provider": "ollama", "url": self.base_url, "reachable": False, "version": None,
+                               "models": {}}
         try:
             out["version"] = self.version()
             out["reachable"] = True
@@ -181,7 +183,7 @@ class Recorder:
              purpose: str = "", timeout: float | None = None,
              options: dict | None = None) -> tuple[ChatResult, dict]:
         prompt_text = json.dumps(messages, ensure_ascii=False)
-        rec = {"workflow_id": self.wf_id, "iteration": self.iteration, "step": self.step, "role": self.role,
+        rec: dict[str, Any] = {"workflow_id": self.wf_id, "iteration": self.iteration, "step": self.step, "role": self.role,
                "provider": client.provider, "execution": client.execution, "model": model, "purpose": purpose,
                "base_url": client.base_url, "started_at": time.time(), "prompt_sha256": sha256(prompt_text),
                "prompt": redact(prompt_text), "model_digest": None, "model_details": {}}

@@ -14,13 +14,13 @@ import ast
 import io
 import tokenize
 from dataclasses import dataclass, field
-from typing import Callable, Iterator
+from typing import Any, Callable, Iterator
 
 COMPARE_SWAPS = {"<": ["<="], "<=": ["<"], ">": [">="], ">=": [">"], "==": ["!="], "!=": ["=="]}
 ARITH_SWAPS = {"+": ["-"], "-": ["+"], "*": ["/"], "/": ["*"], "//": ["/"]}
 BOOL_SWAPS = {"and": ["or"], "or": ["and"]}
 
-TIERS = {
+TIERS: dict[int, dict[str, Any]] = {
     1: {"scope": "focus", "ops": ["compare", "bool"]},
     2: {"scope": "focus+callees", "ops": ["remove_term", "compare", "bool", "arith", "number"]},
     3: {"scope": "file", "ops": ["remove_term", "compare", "bool", "arith", "number"]},

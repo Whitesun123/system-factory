@@ -12,6 +12,7 @@ import doctest
 import re
 import time
 from pathlib import Path
+from typing import Any
 
 from . import loop, repair
 from . import reviewers as reviewers_mod
@@ -55,6 +56,16 @@ def extract_example(body: str) -> str | None:
         if ">>>" in block:
             return block.strip("\n") + "\n"
     return None
+
+
+BUG_ACCEPTANCE_CRITERIA = (
+    "A reproduction test derived from the issue example fails on the base commit",
+    "The same test passes after the change",
+    "The full existing test suite still passes",
+    "Only the source files named in the plan are modified; tests are not modified by the coding agent",
+    "No security findings of high severity in the diff",
+    "A human approves the change before it is merged (System Factory never merges)",
+)
 
 
 def prose(body: str) -> str:
@@ -164,14 +175,7 @@ def requirements(ctx: StepContext) -> dict:
         examples = doctest.DocTestParser().get_examples(example)
         prd["expected_behavior"] = [{"call": e.source.strip(), "expected": e.want.strip()}
                                     for e in examples if e.want.strip()]
-        prd["acceptance_criteria"] = [
-            "A reproduction test derived from the issue example fails on the base commit",
-            "The same test passes after the change",
-            "The full existing test suite still passes",
-            "Only the source files named in the plan are modified; tests are not modified by the coding agent",
-            "No security findings of high severity in the diff",
-            "A human approves the change before it is merged (System Factory never merges)",
-        ]
+        prd["acceptance_criteria"] = list(BUG_ACCEPTANCE_CRITERIA)
     elif kind == "bug":
         prd["acceptance_criteria"] = ["Reporter provides a runnable reproduction example"]
         prd["open_questions"] = ["No `>>>` reproduction example in the issue; cannot derive a failing test."]
@@ -305,10 +309,15 @@ def scan_diff(ctx: StepContext, rng: str) -> dict:
     """Deterministic scope/secret/dangerous-call scan of the fix diff (excludes the repro test commit)."""
     files = ctx.git.out(ctx.worktree, "diff", "--name-only", rng).splitlines()
     diff = ctx.git.out(ctx.worktree, "diff", rng)
+    return scan_diff_text(files, diff, ctx.data["plan"]["target_files"])
+
+
+def scan_diff_text(files: list[str], diff: str, target_files: list[str]) -> dict:
+    """The scan rules themselves, independent of where the diff comes from (pipeline or evaluation harness)."""
     added = [ln[1:] for ln in diff.splitlines() if ln.startswith("+") and not ln.startswith("+++")]
     removed = [ln for ln in diff.splitlines() if ln.startswith("-") and not ln.startswith("---")]
     findings = []
-    targets = set(ctx.data["plan"]["target_files"])
+    targets = set(target_files)
     for f in files:
         if f.startswith("tests/"):
             findings.append({"severity": "high", "rule": "tests-modified", "detail": f"coding agent changed {f}"})
@@ -434,6 +443,8 @@ def coding(ctx: StepContext) -> dict:
             raise BlockedError(f"Escalated to a human after iteration {n}: {reason}")
         raise TransientError(msg)
     cand = result.candidate
+    if cand is None:
+        raise PermanentError("repair search reported success without a candidate")
     commit = commit_all(ctx, [cand.file], f"fix: {wf['issue_title']} (issue #{wf['issue_id']}, iteration {n})\n\n"
                         f"Simulated search-based repair, tier {tier}: {cand.file} {cand.description}."
                         + (f"\nAddresses review feedback: {', '.join(i['id'] for i in fb.get('items', []))}."
@@ -468,7 +479,7 @@ def testing(ctx: StepContext) -> dict:
     suite = ctx.run_pytest()
     ctx.evidence("test_run", f"Iteration {n}: full regression suite", suite.output[-4000:],
                  exit_code=suite.exit_code, summary=pytest_summary(suite.output), commit=head, iteration=n)
-    probes = []
+    probes: list[dict[str, Any]] = []
     for src in accumulated_probes(_previous_iterations(ctx, n)):
         ok, output = run_probe(ctx, src, tag=f"iteration-{n}")
         probes.append({"id": loop.probe_id(src), "source": src, "passed": ok, "output": output[-1500:]})
@@ -551,7 +562,7 @@ def review_panel(ctx: StepContext) -> dict:
                 raise BlockedError(f"Escalated: cost budget ${budget['max_cost_usd']:.2f} exhausted before "
                                    f"reviewer '{adapter.name}' could run")
         t0 = time.time()
-        rec = {"reviewer": adapter.name, "adapter": adapter.name, "provider": adapter.provider,
+        rec: dict[str, Any] = {"reviewer": adapter.name, "adapter": adapter.name, "provider": adapter.provider,
                "model": adapter.model, "simulated": adapter.simulated, "technique": adapter.technique}
         try:
             # deep copy: reviewers cannot see or influence each other's input or output
@@ -593,8 +604,16 @@ def review_panel(ctx: StepContext) -> dict:
 def authoritative_requirements(ctx: StepContext, files_after: dict[str, str]) -> list[str]:
     """The texts a reviewer's expectation must be traceable to: issue, PRD, docstrings, README."""
     wf = ctx.wf
-    prd = wf["data"].get("requirements", {})
-    texts = [wf["issue_title"], prose(wf["issue_body"]), *prd.get("acceptance_criteria", []),
+    try:
+        readme = ctx.workspace([]).read_text("README.md")
+    except (FileNotFoundError, PermissionError, OSError):
+        readme = None
+    return requirement_texts(wf["issue_title"], wf["issue_body"], wf["data"].get("requirements", {}), files_after,
+                             readme)
+
+
+def requirement_texts(title: str, body: str, prd: dict, files_after: dict[str, str], readme: str | None) -> list[str]:
+    texts = [title, prose(body), *prd.get("acceptance_criteria", []),
              *[f"{e['call']} {e['expected']}" for e in prd.get("expected_behavior", [])]]
     for src in files_after.values():
         try:
@@ -605,10 +624,8 @@ def authoritative_requirements(ctx: StepContext, files_after: dict[str, str]) ->
             doc = ast.get_docstring(node)
             if doc:
                 texts.append(doc)
-    try:
-        texts.append(ctx.workspace([]).read_text("README.md"))
-    except (FileNotFoundError, PermissionError, OSError):
-        pass
+    if readme:
+        texts.append(readme)
     return texts
 
 
@@ -748,8 +765,8 @@ def support(ctx: StepContext) -> dict:
     docs = Workspace(wf["repo"], writable=[])  # read-only
     try:
         readme = docs.read_text("README.md")
-    except FileNotFoundError:
-        raise BlockedError("Repository has no README.md to answer from; route to a human support engineer.")
+    except FileNotFoundError as e:
+        raise BlockedError("Repository has no README.md to answer from; route to a human support engineer.") from e
     sections = re.split(r"(?m)^(?=#+ )", readme)
     words = {w for w in re.findall(r"[a-z]+", f"{wf['issue_title']} {wf['issue_body']}".lower())
              if w not in STOPWORDS and len(w) > 2}

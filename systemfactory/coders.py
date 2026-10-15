@@ -15,11 +15,10 @@ Every model call is an `llm_calls` row and every action is a `tool_calls` row.
 from __future__ import annotations
 
 import ast
-import json
 import time
 
 from . import loop
-from .context import BlockedError, PermanentError, StepContext, TransientError
+from .context import BlockedError, StepContext, TransientError
 from .llm import InferenceTimeout, InvalidModelOutput, ModelNotFound, OllamaClient, ProviderError, \
     ProviderUnavailable, Recorder, parse_json
 
@@ -155,11 +154,11 @@ def run(ctx: StepContext, *, n: int, prev: dict | None, fb: dict, strategy: str,
             res, call = rec.chat(client, model, messages, schema=ACTION_SCHEMA, purpose=f"coder turn {turns}",
                                  timeout=wf["options"].get("llm_timeout"), options={"seed": seed})
         except ModelNotFound as e:
-            raise BlockedError(f"{e}. A human must install the model before the workflow can continue.")
+            raise BlockedError(f"{e}. A human must install the model before the workflow can continue.") from e
         except (ProviderUnavailable, InferenceTimeout) as e:
-            raise TransientError(f"coder model call failed: {e}")
+            raise TransientError(f"coder model call failed: {e}") from e
         except ProviderError as e:
-            raise TransientError(f"coder model call failed: {e}")
+            raise TransientError(f"coder model call failed: {e}") from e
         ctx.charge(llm_tokens=res.input_tokens + res.output_tokens)
         messages.append({"role": "assistant", "content": res.content})
         t0 = time.time()

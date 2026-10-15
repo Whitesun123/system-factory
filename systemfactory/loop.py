@@ -66,13 +66,16 @@ def probe_id(source: str) -> str:
 
 def parse_unified_diff(text: str) -> list[dict]:
     """Parse `git diff -U0` output into hunks with old/new line numbers."""
-    hunks, file = [], None
+    hunks: list[dict] = []
+    file: str | None = None
     old_no = new_no = 0
     for line in text.splitlines():
         if line.startswith("+++ "):
             file = line[6:] if line.startswith("+++ b/") else None
         elif line.startswith("@@"):
             m = re.match(r"@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@", line)
+            if m is None:  # malformed hunk header: ignore it rather than crash on untrusted diff text
+                continue
             old_no, new_no = int(m.group(1)), int(m.group(2))
             hunks.append({"file": file, "removed": [], "added": []})
         elif hunks and line.startswith("-") and not line.startswith("---"):

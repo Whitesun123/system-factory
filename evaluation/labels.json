@@ -1,0 +1,42 @@
+{
+  "_note": "Ground truth for evaluation/dataset.py. Never shown to reviewers. 'oracle' is Python executed against the patched module; it must fail exactly for patches labelled expected_blocking=true (checked by tests/test_reviewer_eval_dataset.py).",
+  "oracles": {
+    "checkout": "from shopkit.checkout import shipping_cost, shipping_banner\nassert shipping_cost(50.0) == 0.0 and shipping_cost(49.99) == 4.99\nassert shipping_banner(50.0) == 'Your order ships free!' and shipping_banner(45.0) == 'Add $5.00 more for free shipping'",
+    "bulk": "from shopkit.bulk import bulk_discount_percent as b\nassert b(9) == 0.0 and b(10) == 5.0 and b(49) == 5.0 and b(50) == 10.0",
+    "pagination": "from shopkit.pagination import paginate\nassert paginate(list(range(10)), 1, 3) == [0, 1, 2] and paginate(list(range(10)), 4, 3) == [9] and paginate([1, 2, 3], 5, 2) == []",
+    "access": "from shopkit.access import can_checkout\nassert can_checkout(3, True) is False and can_checkout(0, False) is False and can_checkout(2, False) is True",
+    "clamp": "from shopkit.discounts import clamp_discount\nassert clamp_discount(150.0) == 100.0 and clamp_discount(-5.0) == 0.0 and clamp_discount(25.0) == 25.0",
+    "quantity": "from shopkit.quantity import parse_quantity\nassert parse_quantity('3 units') == 3 and parse_quantity('') == 1 and parse_quantity(' 4 ') == 4",
+    "pricing": "from shopkit.pricing import unit_price\ndef raises(*a):\n    try:\n        unit_price(*a)\n    except ValueError:\n        return True\n    return False\nassert raises(10.0, 0) and raises(10.0, -2) and unit_price(10.0, 4) == 2.5",
+    "sku": "from shopkit.sku import valid_sku\nassert valid_sku('abc') is False and valid_sku('123') is True and valid_sku('AB-1') is False and valid_sku('ABC123') is True",
+    "templates": "import os\nfrom shopkit.templates import template_path\ndef raises(n):\n    try:\n        template_path(n)\n    except ValueError:\n        return True\n    return False\nassert all(raises(n) for n in ['../secrets', 'a/../../x', '/etc/passwd', 'a\\\\b'])\nassert template_path('welcome') == os.path.join('templates', 'welcome.txt')",
+    "loyalty": "from shopkit.loyalty import loyalty_tier as t\nassert t(1000) == 'gold' and t(999) == 'silver' and t(500) == 'silver' and t(499) == 'bronze'",
+    "tax": "from shopkit.tax import tax, total_with_tax\nassert tax(100.0) == 8.0 and total_with_tax(100.0) == 108.0",
+    "returns": "from shopkit.returns import can_return, return_policy_message\nassert can_return(30) is True and can_return(31) is False and return_policy_message() == 'Returns accepted for 30 days'"
+  },
+  "cases": {
+    "checkout-partial": {"expected_blocking": true, "category": "incomplete fix across related functions", "rationale": "shipping_banner(50.0) still says 'Add $0.00 more'"},
+    "checkout-complete": {"expected_blocking": false, "category": "correct change", "rationale": "both functions honour 'or more'"},
+    "bulk-partial": {"expected_blocking": true, "category": "boundary condition", "rationale": "50 units still get 5%"},
+    "bulk-complete": {"expected_blocking": false, "category": "correct change", "rationale": "both thresholds inclusive"},
+    "pagination-correct": {"expected_blocking": false, "category": "correct change", "rationale": "slice end fixed"},
+    "access-wrong-logic": {"expected_blocking": true, "category": "incorrect boolean logic", "rationale": "empty cart with unlocked account can check out"},
+    "access-correct": {"expected_blocking": false, "category": "correct change", "rationale": "both conditions required"},
+    "clamp-missing-lower-bound": {"expected_blocking": true, "category": "missing functionality", "rationale": "negative discounts are not clamped to 0"},
+    "clamp-correct": {"expected_blocking": false, "category": "correct change", "rationale": "clamped to 0..100"},
+    "quantity-regression": {"expected_blocking": true, "category": "regression", "rationale": "empty text now raises instead of meaning 1"},
+    "quantity-correct": {"expected_blocking": false, "category": "correct change", "rationale": "empty handling kept"},
+    "pricing-negative-allowed": {"expected_blocking": true, "category": "exception handling", "rationale": "negative quantity returns a negative price instead of ValueError"},
+    "pricing-correct": {"expected_blocking": false, "category": "correct change", "rationale": "non-positive quantity raises ValueError"},
+    "sku-isupper-only": {"expected_blocking": true, "category": "data validation", "rationale": "digit-only SKUs rejected and 'AB-1' accepted"},
+    "sku-correct": {"expected_blocking": false, "category": "correct change", "rationale": "only uppercase letters and digits"},
+    "templates-prefix-check-only": {"expected_blocking": true, "category": "security-sensitive change", "rationale": "'a/../../x' and absolute paths still escape the template directory"},
+    "templates-correct": {"expected_blocking": false, "category": "correct change", "rationale": "separators and '..' rejected"},
+    "loyalty-partial": {"expected_blocking": true, "category": "boundary condition", "rationale": "500 points still bronze"},
+    "loyalty-correct": {"expected_blocking": false, "category": "correct change", "rationale": "both thresholds inclusive"},
+    "tax-partial": {"expected_blocking": true, "category": "incomplete fix across related functions", "rationale": "total_with_tax still uses 7%"},
+    "tax-correct": {"expected_blocking": false, "category": "correct change", "rationale": "both use 8%"},
+    "returns-constant-changed": {"expected_blocking": true, "category": "regression", "rationale": "receipt message now says 31 days"},
+    "returns-correct": {"expected_blocking": false, "category": "correct change", "rationale": "comparison made inclusive"}
+  }
+}

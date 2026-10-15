@@ -109,14 +109,17 @@ def collect(orch, wf_id: int) -> dict[str, object]:
     head = _git(wf["worktree"], "rev-parse", "HEAD") if wf.get("worktree") and Path(wf["worktree"]).exists() else None
     diff = (_git(wf["worktree"], "diff", f"{wf['base_commit']}..HEAD") if head and wf.get("base_commit") else None) or \
         next((e["content"] for e in reversed(evidence) if e["kind"] in ("diff", "patch")), "")
-    models = {}
+    models: dict[str, dict] = {}
     for c in calls:
         m = models.setdefault(c["model"], {"provider": c["provider"], "execution": c["execution"],
                                            "digest": c["model_digest"], "details": c["model_details"],
                                            "roles": set(), "calls": 0, "ok": 0, "input_tokens": 0, "output_tokens": 0,
                                            "runtime_seconds": 0.0})
-        m["roles"].add(c["role"]); m["calls"] += 1; m["ok"] += c["status"] == "ok"
-        m["input_tokens"] += c["input_tokens"] or 0; m["output_tokens"] += c["output_tokens"] or 0
+        m["roles"].add(c["role"])
+        m["calls"] += 1
+        m["ok"] += c["status"] == "ok"
+        m["input_tokens"] += c["input_tokens"] or 0
+        m["output_tokens"] += c["output_tokens"] or 0
         m["runtime_seconds"] += c["runtime_seconds"] or 0.0
     for m in models.values():
         m["roles"] = sorted(m["roles"])
@@ -127,7 +130,7 @@ def collect(orch, wf_id: int) -> dict[str, object]:
     ollama = OllamaClient(base_url=wf["options"].get("ollama_url")).status(sorted(models)) if models else None
     sample = (wf.get("issue_source") or "").removeprefix("sample:").split("+")[0]
     runtime = wf["options"].get("runtime", "simulated")
-    repro = [f"python -m systemfactory init-demo",
+    repro = ["python -m systemfactory init-demo",
              f"python -m systemfactory submit --sample {sample} --runtime {runtime}" if sample else
              "python -m systemfactory submit --title ... --body ...",
              "python -m systemfactory run", f"python -m systemfactory show {wf_id}",

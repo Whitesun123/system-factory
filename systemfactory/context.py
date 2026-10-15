@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import re
-import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -41,7 +40,7 @@ class StepContext:
     # ---- state
     @property
     def wf(self) -> dict:
-        return self.store.get_workflow(self.wf_id)
+        return self.store.workflow(self.wf_id)
 
     @property
     def data(self) -> dict:
@@ -93,7 +92,7 @@ class StepContext:
     def set_phase(self, phase: str) -> dict:
         it = self.iteration()
         self.store.update_iteration(self.wf_id, it["n"], status=phase)
-        return self.store.current_iteration(self.wf_id)
+        return self.iteration()
 
     # ---- tools
     def workspace(self, writable: list[str]) -> Workspace:
@@ -115,7 +114,7 @@ class StepContext:
                 self._backend = resolve_backend(name, bool(opts.get("require_isolation", False)))
             except IsolationUnavailable as e:
                 raise BlockedError(f"{e}. Nothing was executed; start Docker / build the sandbox image, or "
-                                   "explicitly choose the local backend for trusted code.")
+                                   "explicitly choose the local backend for trusted code.") from e
         return self._backend
 
     def run_python(self, *args: str, timeout: float | None = None) -> CommandResult:

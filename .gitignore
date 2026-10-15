@@ -27,3 +27,7 @@ data-real-demo/
 
 # Private planning brief (kept locally, never published)
 SYSTEM_FACTORY_HANDOFF.md
+
+# Coverage data and in-progress evaluation output
+.coverage
+evaluation/results/

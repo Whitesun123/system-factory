@@ -24,9 +24,12 @@ import os
 import re
 import subprocess
 import tokenize
-from typing import Callable, Protocol
+from typing import TYPE_CHECKING, Callable, Mapping, Protocol
 
 from .loop import parse_unified_diff
+
+if TYPE_CHECKING:
+    from .llm import Recorder
 
 
 class ReviewerError(Exception):
@@ -52,8 +55,8 @@ def _module(path: str) -> str:
     return path[:-3].replace("/", ".") if path.endswith(".py") else path
 
 
-def _functions(source: str) -> list[tuple[str, int, int, ast.AST]]:
-    out = []
+def _functions(source: str) -> list[tuple[str, int, int, ast.FunctionDef | ast.AsyncFunctionDef]]:
+    out: list[tuple[str, int, int, ast.FunctionDef | ast.AsyncFunctionDef]] = []
     for node in ast.walk(ast.parse(source)):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             out.append((node.name, node.lineno, node.end_lineno or node.lineno, node))
@@ -167,12 +170,12 @@ class DiffRiskReviewer:
             if src is None or len(h["removed"]) != len(h["added"]):
                 continue
             toks = [t for t in tokenize.generate_tokens(io.StringIO(src).readline)]
-            for (_, old), (new_no, new) in zip(h["removed"], h["added"]):
+            for (_, old), (new_no, new) in zip(h["removed"], h["added"], strict=True):  # lengths checked above
                 old_ops = [t.string for t in tokenize.generate_tokens(io.StringIO(old.strip() + "\n").readline)
                            if t.type == tokenize.OP]
                 new_ops = [t.string for t in tokenize.generate_tokens(io.StringIO(new.strip() + "\n").readline)
                            if t.type == tokenize.OP]
-                swaps = [(a, b) for a, b in zip(old_ops, new_ops) if a != b] if len(old_ops) == len(new_ops) else []
+                swaps = [(a, b) for a, b in zip(old_ops, new_ops, strict=True) if a != b] if len(old_ops) == len(new_ops) else []
                 for name, start, end, _ in _functions(src):
                     if not start <= new_no <= end:
                         continue
@@ -234,7 +237,7 @@ def parse_review_json(text: str) -> dict:
     try:
         data = json.loads(m.group(0))
     except json.JSONDecodeError as e:
-        raise ReviewerError(f"reviewer reply was not valid JSON: {e}")
+        raise ReviewerError(f"reviewer reply was not valid JSON: {e}") from e
     if data.get("verdict") not in ("approve", "request_changes") or not isinstance(data.get("findings", []), list):
         raise ReviewerError("reviewer reply did not match the review schema")
     return data
@@ -392,7 +395,7 @@ def check_to_probe(check: dict, inventory: list[dict]) -> str | None:
     return validate_check(check, inventory)[0]
 
 
-from .loop import TRUSTED_REVIEWERS  # noqa: E402  (deterministic reviewers written by System Factory)
+from .loop import TRUSTED_REVIEWERS  # noqa: E402,F401  re-exported: deterministic reviewers written by System Factory
 FORBIDDEN_NAMES = {"open", "exec", "eval", "compile", "getattr", "setattr", "delattr", "globals", "locals", "vars",
                    "input", "breakpoint", "exit", "quit", "help", "memoryview", "classmethod", "staticmethod", "type"}
 FORBIDDEN_NODES = (ast.Import, ast.Lambda, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.With,
@@ -485,7 +488,7 @@ class OllamaReviewer:
         self.focus = focus
         self.technique = f"LLM review ({focus}) via local Ollama"
         self.client = OllamaClient(base_url=base_url, timeout=timeout)
-        self.recorder = None  # set by the review panel so every call becomes an llm_calls row
+        self.recorder: Recorder | None = None  # set by the review panel so every call becomes an llm_calls row
 
     def available(self) -> tuple[bool, str]:
         st = self.client.status([self.model])
@@ -504,11 +507,13 @@ class OllamaReviewer:
         messages = [{"role": "system", "content": system},
                     {"role": "user", "content": render_bundle(bundle) +
                      f"\n\n# Functions in the changed files (write checks for each)\n{listing}"}]
+        if self.recorder is None:
+            raise ReviewerError("no call recorder attached: refusing an unrecorded model call")
         try:
             res, call = self.recorder.chat(self.client, self.model, messages, schema=OLLAMA_REVIEW_SCHEMA,
                                            purpose=f"{self.label} review")
         except ProviderError as e:
-            raise ReviewerError(f"{type(e).__name__}: {e}")
+            raise ReviewerError(f"{type(e).__name__}: {e}") from e
         data = parse_json(res.content)
         if data.get("verdict") not in ("approve", "request_changes"):
             raise ReviewerError("reviewer reply did not match the review schema")
@@ -537,7 +542,7 @@ class CommandReviewer:
     """Any provider: a user-configured command reads the bundle JSON on stdin and prints a review JSON."""
     technique = "external reviewer process"
 
-    def __init__(self, key: str, env: dict | None = None):
+    def __init__(self, key: str, env: Mapping[str, str] | None = None):
         env = env if env is not None else os.environ
         p = f"SF_REVIEWER_CMD_{key.upper()}"
         self.name = f"command:{key}"
@@ -551,11 +556,13 @@ class CommandReviewer:
         return (True, "configured") if self.command else (False, f"SF_REVIEWER_CMD_{self.name[8:].upper()} not set")
 
     def review(self, bundle: dict, tools: Tools) -> dict:
+        if not self.command:
+            raise ReviewerError(f"{self.name}: no command configured")
         try:
             res = subprocess.run(self.command, shell=True, input=json.dumps(bundle), capture_output=True,
                                  text=True, encoding="utf-8", timeout=self.timeout)
-        except subprocess.TimeoutExpired:
-            raise ReviewerError(f"reviewer command timed out after {self.timeout}s")
+        except subprocess.TimeoutExpired as e:
+            raise ReviewerError(f"reviewer command timed out after {self.timeout}s") from e
         if res.returncode != 0:
             raise ReviewerError(f"reviewer command exited {res.returncode}: {res.stderr.strip()[-300:]}")
         data = parse_review_json(res.stdout)

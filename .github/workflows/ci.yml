@@ -1,5 +1,7 @@
 name: tests
 on: [push, pull_request]
+permissions:
+  contents: read            # no write access, no secrets are used by this workflow
 jobs:
   offline-tests:
     strategy:
@@ -14,10 +16,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install -r requirements.txt
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt -c constraints.txt
       # Linux runners have a Docker daemon: build the sandbox so the container-isolation tests run there.
       - if: runner.os == 'Linux'
         run: docker build -t systemfactory-sandbox:1 sandbox
       - run: git config --global user.email ci@example.invalid && git config --global user.name ci
-      # Deterministic suite only: no Ollama, no LLM calls.
-      - run: python -m pytest -q -p no:cacheprovider
+      - run: python -m ruff check .
+      - run: python -m mypy systemfactory evaluation
+      # Deterministic suite only: no Ollama, no GPU, no LLM calls, no paid APIs.
+      - run: python -m coverage run -m pytest -q -p no:cacheprovider
+      - run: python -m coverage report --include="systemfactory/orchestrator.py,systemfactory/statemachine.py,systemfactory/loop.py,systemfactory/execution.py,systemfactory/sandbox.py,systemfactory/store.py,systemfactory/context.py" --fail-under=85

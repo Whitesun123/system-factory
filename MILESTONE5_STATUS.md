@@ -21,7 +21,7 @@ Date: 2026-10-15. This document separates **(1) runtime results observed earlier
 | API: provider/model status in `/api/health` (cached 10 s), `/api/reviewers`, `/api/llm_calls/{id}`, runtime selection on submit | `systemfactory/api.py` | implemented |
 | Dashboard: runtime and provider panel, runtime selector, feedback-ablation switch, REAL/SIMULATED badges, executed checks per reviewer, **agents** tab (model calls, tool calls, test commands), evidence export button | `systemfactory/static/index.html` | implemented, **not viewed in a browser** after the last change |
 | New demo bug `checkout` (two related defects; the report mentions one) | `demo/shopcart_template/shopcart/checkout.py` | implemented |
-| Scripts: `setup.ps1`, `start.ps1`, `test.ps1`, `pull_models.ps1`, `check_models.py` (no inference), `real_demo.py`, `eval_reviewers.py` | `scripts/` | written; `real_demo.py` **not executed** |
+| Scripts: `setup.ps1`, `start.ps1`, `test.ps1`, `pull_models.ps1`, `check_models.py` (no inference), `real_demo.py`, `eval_reviewers.py` (removed in Milestone 6, superseded by `evaluation/`) | `scripts/` | written; `real_demo.py` **not executed** |
 | CI: offline suite on Ubuntu and Windows | `.github/workflows/ci.yml` | written, not yet run on GitHub |
 
 ## Checks executed for this release (offline, no LLM)
@@ -65,7 +65,7 @@ Observations:
 3. **Real end-to-end, checkout bug (scenario B attempt):** the coder fixed only the reported function. Both real
    reviewers **approved an incomplete fix** (using the earlier review prompt). That run was a genuine false approval,
    and it led to the executed-checks design.
-4. **Reviewer benchmark** (`scripts/eval_reviewers.py`: 5 labeled patches, 2 incomplete and 3 correct, scored on the
+4. **Reviewer benchmark** (`scripts/eval_reviewers.py`, superseded by `evaluation/` in Milestone 6: 5 labeled patches, 2 incomplete and 3 correct, scored on the
    effective outcome after evidence rules), final version with executed checks:
 
    | model | Reviewer A role | Reviewer B role |

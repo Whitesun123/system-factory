@@ -103,10 +103,12 @@ def main(argv: list[str] | None = None) -> None:
     sp.add_argument("id", type=int)
     sp.add_argument("--out", help="output directory (default: <data>/evidence/wf-<id>)")
     args = p.parse_args(argv)
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except (AttributeError, ValueError):
-        pass
+    reconfigure = getattr(sys.stdout, "reconfigure", None)  # absent when stdout is redirected to a non-TTY wrapper
+    if reconfigure is not None:
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except ValueError:
+            pass
 
     settings = Settings.from_env()
     if args.cmd == "serve":
@@ -151,10 +153,10 @@ def main(argv: list[str] | None = None) -> None:
         print_detail(orch, args.id)
     elif args.cmd in ("approve", "reject"):
         getattr(orch, args.cmd)(args.id, args.by, args.comment)
-        print(f"workflow {args.id}: {orch.store.get_workflow(args.id)['state']}")
+        print(f"workflow {args.id}: {orch.store.workflow(args.id)['state']}")
     elif args.cmd in ("cancel", "retry"):
         getattr(orch, args.cmd)(args.id)
-        print(f"workflow {args.id}: {orch.store.get_workflow(args.id)['state']}")
+        print(f"workflow {args.id}: {orch.store.workflow(args.id)['state']}")
     elif args.cmd == "export":
         from .evidence import export
         print(f"evidence written to {export(orch, args.id, args.out)}")

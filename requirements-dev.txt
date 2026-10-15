@@ -1,0 +1,4 @@
+# Development tools (lint, types, coverage). Install with -c constraints.txt for reproducibility.
+ruff==0.17.1
+mypy==2.4.0
+coverage==7.16.2
