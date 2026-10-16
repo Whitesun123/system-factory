@@ -73,16 +73,23 @@ command or CI run), and what remains open. Nothing here is a plan presented as a
   runs.
 - Run: 30.4 minutes of real inference (budget 30), Ollama 0.30.8, one provider. 22 (case, model) pairs were **not
   executed**; they are listed in `evaluation/results/REPORT.md`.
-- **Measured:** raw model verdicts caught 0–2 of 9 defects on the comparable 18 cases. The evidence pipeline caught
-  6 of 9 for phi4 alone and 7 of 9 for the phi4 + gemma3 panel, with 0 false blocks. Every mixed-model panel also
-  escalated 8–10 of 18 cases to a human. The deterministic baseline caught 0 of 9.
-- **Pipeline defects found by the evaluation and fixed:** an expected exception was compared as a string, which
-  blocked correct code that raised it; a mis-escaped backslash made a model's check test a different input. Both
-  are fixed with regression tests, and the cached reviews were re-scored with no new inference.
-- **Selection:** Reviewer A `phi4:14b`, Reviewer B `gemma3:12b` (DECISIONS.md D23). The margin over the next panels
-  is one case.
+- **Measured (comparable 18 cases, after the fixes below):** raw verdicts of phi4, qwen3 and mistral-nemo caught 0 of
+  9 defects; gemma3 caught 2. The evidence pipeline caught 6 of 9 for phi4 alone (0 false blocks). The selected phi4 +
+  qwen3 panel caught 6 of 9 with 1 false approval, 0 false blocks, 8 of 9 correct changes approved and 2 escalations.
+  The deterministic baseline caught 0 of 9.
+- **Pipeline defects found by the evaluation and fixed** (regression tests in `tests/test_evidence_states.py`):
+  1. an expected exception was compared as a string, which blocked correct code that raised it;
+  2. a mis-escaped backslash made a model's check test a different input;
+  3. a check whose `function` field used the prompt's inventory format was rejected, or not counted as an
+     inspection, although its call was valid. Most gemma3 and qwen3 reviews were affected, so most correct
+     changes were escalated. The first real run (A1, on `ac0784f`) showed the same escalation, and it was stopped
+     so that the real scenarios run on the fixed code.
+  The cached reviews were re-scored after each fix with no new inference. `inference-run-1.json` keeps the
+  scores from before the fixes. **The post-fix numbers are optimistic: the fixes were developed on this dataset.**
+- **Selection:** Reviewer A `phi4:14b`, Reviewer B `qwen3:14b` (DECISIONS.md D23). The margins over the other
+  panels are one or two cases.
 - Observed failure: `qwen3:14b` returned an empty reply after exhausting its output on thinking tokens (recorded as
-  a reviewer error, never as an approval).
+  a reviewer error, never as an approval). Mean latency was 43 s (phi4: 16 s).
 
 ## M6.5: Engineering quality (implemented, verified locally; CI pending)
 

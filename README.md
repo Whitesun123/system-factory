@@ -1,127 +1,122 @@
 # System Factory
 
-A local, AI-assisted software-engineering orchestrator. It takes an issue (bug, feature request or support
-question) through **Intake → Triage → PRD → Plan → isolated workspace → Reproduction → [Coding → Deterministic
-tests → Independent reviewers → Evidence verification → Feedback aggregation → Revision]ⁿ → Quality gate →
-Human approval**. It never merges, pushes or deploys.
+A local orchestrator that takes a software issue from report to a reviewed, tested patch that waits for a human
+decision. A **deterministic control plane** runs the pipeline. **Models only work inside steps**, and every claim a
+model makes is checked by executing something before it can affect a decision. System Factory never merges, pushes
+or deploys.
 
-Two runtimes share one pipeline:
-
-| Runtime | Coding agent | Reviewers | Use |
-|---|---|---|---|
-| `simulated` (default) | deterministic search-based program repair | two deterministic reviewers (spec examples, diff heuristics) | unit tests, CI, offline demo |
-| `ollama` | real LLM tool-using agent (local Ollama) | two real LLM reviewers, A and B, using different models on **one** provider | real local inference |
-
-See [MILESTONE5_STATUS.md](MILESTONE5_STATUS.md) for what has and has not been verified.
-
-## Screenshots (real captures of deterministic runs)
-
-![Review loop: iteration 1 blocked by an executed check, feedback, iteration 2 passes, quality gate](docs/screenshots/01-iterations-review-loop.png)
-![Repeated solution detected and escalated](docs/screenshots/02-stall-escalation.png)
-![Agent activity and test evidence](docs/screenshots/03-agents-test-evidence.png)
-
-Matching sanitized evidence packages: [examples/evidence/](examples/evidence/).
-
-## Architecture in one paragraph
-
-A deterministic orchestrator ([orchestrator.py](systemfactory/orchestrator.py)) owns the state machine,
-retries, budgets, cancellation and the approval gate. Roles ([roles.py](systemfactory/roles.py)) do the work
-inside a step through a restricted context: they can only write allow-listed files in their own git worktree and
-run fixed commands with a scrubbed environment. The implementation loop repeats coding, testing, review and
-feedback per **iteration**. Reviewer findings are trusted only with executable evidence: probes and
-reviewer-proposed specification checks are run in the sandbox. Unconfirmed blockers are downgraded, and checks
-that fail when executed become blocking. The loop stops on success, on a stall (repeated patch, identical failures,
-no progress) or on a budget (iterations, time, tokens, cost). A stall or exhausted budget escalates to a human.
-Details: [ARCHITECTURE.md](ARCHITECTURE.md) and [DECISIONS.md](DECISIONS.md).
-
-## Install (Windows 11, PowerShell)
-
-Requirements: Python 3.11+ and git. Ollama is optional; it's only needed for the `ollama` runtime.
-
-```powershell
-git clone https://github.com/Whitesun123/system-factory.git
+```mermaid
+flowchart LR
+    I[Issue] --> T[Triage] --> R[PRD + plan] --> W[Isolated worktree] --> Q[Failing reproduction test]
+    Q --> C
+    subgraph L[Implementation loop: one iteration]
+        C[Coding] --> D[Deterministic tests]
+        D --> RA[Reviewer A]
+        D --> RB[Reviewer B]
+        RA --> E[Evidence verification]
+        RB --> E
+        E --> F{Decision}
+    end
+    F -- revise: verified findings --> C
+    F -- stalled / budget / unresolved --> H[Blocked: escalated to a human]
+    F -- pass --> G[Quality gate: re-verifies everything] --> A[Human approval]
 ```
 
+## The problem
+
+A patch that passes the tests can still be wrong, and a model reviewer's verdict is not evidence. In this
+project's own measurements, the best local reviewer model (phi4:14b) approved all 9 defective patches by its own
+verdict, and the other models did little better. The same reviewers' **executable checks**, run in a sandbox
+and traced to the requirements, caught 6 of the 9 defects without blocking a correct change
+([evaluation](#measured-reviewer-evaluation)). System Factory is built
+around that difference.
+
+## How the loop works
+
+1. **QA turns the issue's example into a test** and proves that it **fails** on the current code before coding starts.
+2. **Coding:** the deterministic repair search or a tool-using LLM agent edits only the planned source files in its
+   own git worktree.
+3. **Deterministic tests:** the reproduction test, the full suite, every probe from earlier iterations, and scope and
+   security scans.
+4. **Two reviewers** get identical, deep-copied inputs (diff, requirements, test evidence, history). Neither sees the
+   other's output. Each must propose **executable checks**: a function call and its expected result.
+5. **Evidence verification** (control plane, not a model) executes every check and classifies each claim:
+
+   | State | Meaning | Effect |
+   |---|---|---|
+   | confirmed | the check failed, and its expected value is grounded in the issue, acceptance criteria or docs (or two reviewers independently expect the same) | blocking: sent back to coding as feedback |
+   | unsupported | the check failed, but the expectation is not traceable to any requirement | unresolved: escalate |
+   | conflicting | reviewers expect different results for the same call | unresolved: escalate |
+   | unverified | a claim with no runnable check, or a probe that is itself broken | downgraded |
+   | invalid / passed | the check was rejected by validation, or executed and passed | recorded only |
+
+6. **Decision** (`loop.assess_progress`): *revise* with the verified findings, *pass*, or stop: a repeated patch
+   fingerprint, the same failure signature, no progress, unresolved evidence, or an exhausted budget. A stop sets
+   the workflow to **blocked** with an escalation record; it never approves.
+7. **Quality gate:** re-verifies every acceptance criterion and every required probe. It also checks that at least two
+   reviews inspected the change, that no evidence is unresolved, and that the reviewed commit is the final HEAD of a
+   clean worktree. **Approval is refused** without a gate SUCCESS.
+
+## Control plane vs model roles
+
+| Owned by the deterministic control plane | Done by a role (model or deterministic) inside a step |
+|---|---|
+| step order, retries, iterations, budgets, cancellation, crash recovery | writing a patch (allow-listed files only, its own worktree) |
+| executing tests, probes and checks (in the sandbox) | proposing review findings and executable checks |
+| evidence classification, decisions, stall detection | drafting PRD, plan and support answers |
+| quality gate, approval guard, audit log, evidence export | — |
+
+A model never chooses the next step, never runs a shell, and never judges its own evidence.
+
+## Real vs simulated
+
+| Runtime | Coder | Reviewers | Execution backend | Use |
+|---|---|---|---|---|
+| `simulated` (default) | deterministic search-based repair | two deterministic reviewers (spec examples, diff heuristics) | `local` process | tests, CI, offline demo |
+| `ollama` | `qwen2.5-coder:14b` tool-using agent | Reviewer A `phi4:14b`, Reviewer B `qwen3:14b` | `docker` sandbox, **required** (fails closed) | real local inference |
+
+All three models run on **one provider** (a local Ollama server). Different models are not different providers,
+and the dashboard and evidence say so. Every model call, including a failed one, is recorded with model, digest,
+the token counts Ollama reported, timing, and the sanitized prompt and response. The real runtime never silently
+falls back to a simulation. Claude and external-command reviewer adapters exist but are disabled without explicit
+keys and approval.
+
+## Screenshots
+
+Real captures of the dashboard serving recorded runs (no mock data):
+
+<!-- SCREENSHOTS -->
+
+## One-command demo
+
 ```powershell
-cd system-factory; .\scripts\setup.ps1
+git clone https://github.com/Whitesun123/system-factory.git; cd system-factory; .\scripts\setup.ps1; .\scripts\start.ps1
 ```
 
-`setup.ps1` creates `.venv`, installs `requirements.txt` and generates the separate demo repository in `data/`.
-Without the script: `pip install -r requirements.txt`, then `python -m systemfactory init-demo`.
-
-## Start the dashboard
-
-```powershell
-.\scripts\start.ps1
-```
-
-Open http://127.0.0.1:8765. The API, dashboard and background worker bind to localhost only. There is no
-authentication, so don't expose it.
-
-The dashboard shows the runtime and provider status, installed models with digests, a runtime selector, each
-workflow's pipeline, an **iterations** view (patch, tests, every reviewer report, executed checks, aggregated
-feedback, decision), an **agents** view (every model call with tokens and timing, the sanitized prompt and response,
-every coding-agent tool call, every test command with exit code and pass/fail counts), the diff, the audit log,
-approval controls and **Export evidence (.zip)**.
-
-## Configure Ollama (local LLM runtime)
-
-1. Install Ollama from https://ollama.com/download.
-2. Optional: store models on a large drive by setting `OLLAMA_MODELS` (for example `D:\OllamaModels`) for the
-   Ollama server process.
-3. Start the server, localhost only, with cloud features disabled:
-
-   ```powershell
-   $env:OLLAMA_NO_CLOUD = "1"; ollama serve
-   ```
-
-4. Download the default models (about 25 GB):
-
-   ```powershell
-   .\scripts\pull_models.ps1
-   ```
-
-   That runs `ollama pull qwen2.5-coder:14b`, `ollama pull phi4:14b` and `ollama pull mistral-nemo:12b`.
-5. Check availability. This reads the model list only; it never loads a model:
-
-   ```powershell
-   python scripts\check_models.py
-   ```
-
-System Factory talks to Ollama over its HTTP API (`POST /api/chat` with `stream: false` and a JSON-schema `format`
-for structured output; `GET /api/tags` for model digests; `GET /api/version`). Temperature is 0, and the seed is
-fixed per attempt.
-
-### Configuration
-
-All settings are environment variables; [.env.example](.env.example) lists them. Defaults are project-relative.
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `SF_RUNTIME` | `simulated` | default runtime for new workflows (`simulated` or `ollama`) |
-| `SF_DATA_DIR` | `./data` | SQLite DB, generated demo repo, worktrees, evidence |
-| `SF_OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama server |
-| `SF_CODER_MODEL` | `qwen2.5-coder:14b` | coding agent |
-| `SF_REVIEWER_A_MODEL` | `phi4:14b` | Reviewer A: requirements, correctness, architecture |
-| `SF_REVIEWER_B_MODEL` | `mistral-nemo:12b` | Reviewer B: edge cases, regressions, security, maintainability |
-| `SF_OLLAMA_TIMEOUT` | `300` | seconds per model call |
-| `SF_OLLAMA_NUM_CTX` / `SF_OLLAMA_KEEP_ALIVE` | `12288` / `10m` | context window / how long a model stays loaded |
-| `SF_CODER_MAX_TURNS` | `6` | tool-loop turns per coding attempt |
-| `SF_REVIEWERS` | `simulated-spec,simulated-diff` | reviewers for the simulated runtime |
-| `ANTHROPIC_API_KEY`, `SF_ALLOW_PAID_INFERENCE=1` | unset | enable the optional, paid Claude reviewer adapter |
-
-Per-workflow budgets (iterations, loop time, tokens, cost, test runs) are in `Settings.default_budget`
-([config.py](systemfactory/config.py)) and can be overridden on submit (`--max-iterations`).
-
-## Run workflows
-
-Simulated, fully offline:
+Then open http://127.0.0.1:8765, pick a sample and press **Submit**. The deterministic runtime needs no GPU,
+network or model. For a fully scripted, offline run of all samples on the command line:
 
 ```powershell
 python -m systemfactory demo
 ```
 
-Real local inference (needs Ollama and the models):
+[DEMO.md](DEMO.md) is a five-minute walkthrough; [PRESENTATION.md](PRESENTATION.md) has explanation notes.
+
+## Real local inference (optional)
+
+Requirements: Ollama, the three models (about 25 GB) and Docker for the sandbox.
+
+```powershell
+.\scripts\pull_models.ps1
+```
+
+```powershell
+.\scripts\build_sandbox_image.ps1
+```
+
+```powershell
+python scripts\check_models.py
+```
 
 ```powershell
 python -m systemfactory submit --sample checkout --runtime ollama
@@ -131,67 +126,151 @@ python -m systemfactory submit --sample checkout --runtime ollama
 python -m systemfactory run
 ```
 
-```powershell
-python -m systemfactory show 1
-```
+`check_models.py` reads the model list only; it never loads a model. If Docker or the sandbox image is missing, a
+real-runtime workflow is **blocked before anything executes**. The scripted real scenarios (`scripts/real_demo.py`)
+check each result against an oracle the agents never see.
 
-Or pick **Real local inference (Ollama)** in the dashboard. Scripted real scenarios A–E (success, revision after
-review, stall via feedback ablation, provider unavailable, approval guard), checked against an oracle the agents
-never see:
+<!-- REAL-RESULTS -->
 
-```powershell
-python scripts\real_demo.py
-```
+## Execution sandbox
 
-| CLI | Purpose |
-|---|---|
-| `submit --sample S [--runtime simulated\|ollama] [--no-coder-feedback] [--max-iterations N]` | Submit a sample issue. Samples: shipping, pagination, bulk, checkout, coupon, not_reproducible, feature, support |
-| `submit --title T --body B` | Submit a custom issue (bugs need a fenced `>>>` example) |
-| `run` / `status` / `show ID` | Process the queue / list workflows / show steps, iterations, reviewers, evidence |
-| `approve ID --by NAME` / `reject ID --by NAME` | Human decision (approval requires quality gate SUCCESS) |
-| `cancel ID` / `retry ID` | Cancel / retry a failed or blocked workflow |
-| `export ID [--out DIR]` | Write a sanitized evidence package |
-| `runtime` | Show configured runtime and provider/model availability |
-| `serve` | API, dashboard and worker |
+Untrusted code (target-repository tests, model-written patches and checks) runs through one choke point,
+`StepContext.run_python`, on a pluggable backend ([execution.py](systemfactory/execution.py)). The `docker`
+backend starts a fresh container per command with: no network, a read-only root, the worktree and probes mounted
+read-only, a tmpfs `/tmp`, all capabilities dropped, `no-new-privileges`, uid 65534, and PID, memory and CPU limits.
+The container is always force-removed. The image is pinned by digest and its packages by hash. Adversarial tests use
+harmless synthetic payloads ([tests/test_docker_sandbox.py](tests/test_docker_sandbox.py)). Trust policy and limits:
+[sandbox/README.md](sandbox/README.md).
 
-## Logs and evidence
+## Measured reviewer evaluation
 
-Everything is persisted in SQLite (`data/systemfactory.db`): workflows, steps, attempts (with iteration), iterations,
-reviews (provider, model, digest, real or simulated, findings, checks), `llm_calls` (status, timings, tokens reported
-by the runtime, sanitized prompt and response), `tool_calls`, `test_runs` (command, commit, exit code, pass/fail
-counts), events (audit log), evidence and approvals.
+23 labelled cases (11 defective, 12 correct) over 12 small code bases. Every case is a valid bug fix whose
+reproduction test passes, so the defects are the ones tests miss. Results are from real inference: 30.4 minutes of a
+30-minute budget, one provider, checks executed in the Docker sandbox. On the 18 cases that every configuration ran:
 
-`python -m systemfactory export ID` (or the dashboard button) writes `summary.md`, `run-manifest.json`,
-`iterations.json`, `review-findings.json`, `test-results.json`, `quality-gate.json`, `patch.diff`, `llm-calls.json`,
-`tool-calls.json` and `events.json` to `data/evidence/wf-ID/`. Secrets are redacted and local paths are rewritten
-to `<PROJECT>`, `<DATA_DIR>` or `<HOME>`.
+| Decision source | defects caught (of 9) | false approvals | false blocks | correct changes approved (of 9) | escalated (of 18) |
+|---|---|---|---|---|---|
+| deterministic reviewers | 0 | 9 | 0 | 9 | 0 |
+| phi4:14b, raw verdict | 0 | 9 | 0 | 9 | 0 |
+| phi4:14b alone, evidence pipeline | 6 | 3 | 0 | 8 | 1 |
+| **phi4 + qwen3:14b panel, evidence pipeline (selected)** | **6** | **1** | **0** | **8** | **2** |
+| phi4 + gemma3:12b panel, evidence pipeline | 7 | 1 | 1 | 5 | 4 |
+| phi4 + mistral-nemo:12b panel, evidence pipeline | 6 | 1 | 0 | 1 | 10 |
+| phi4 + phi4 (same model, two prompts) | 6 | 2 | 0 | 7 | 3 |
 
-## Tests
+Full tables, per-case results, latency, tokens, model digests and the 22 (case, model) pairs that were **not
+executed**: [evaluation/results/REPORT.md](evaluation/results/REPORT.md). The selected panel had one reviewer error
+(qwen3 returned an empty reply after spending its output on thinking tokens), which counts as neither a catch nor an
+approval. The panels differ by one or two cases, which is within noise on 18 cases. **The evaluation also exposed
+three defects in the evidence pipeline itself, which were fixed on this same dataset, so these post-fix numbers are
+optimistic; there is no held-out set** (see the case study and D23).
+
+## Case study: from "reviewer says OK" to executed, grounded evidence
+
+1. **Problem.** An automated fix must not ship because it passes the tests. The planted `bulk` bug has two
+   boundaries; the issue reports only one.
+2. **Initial design (Milestone 3).** Review once, after coding, and retry coding blindly on failure. Tests passed
+   the incomplete fix.
+3. **First revision (Milestone 4).** Review moved *inside* the loop. A failing reviewer probe became feedback for
+   the next iteration, and repeated patches were detected by fingerprint.
+4. **Discovered flaw (Milestone 5, real models).** A real LLM reviewer *approved* an incomplete fix. Another invented
+   a blocker. A verdict is not evidence.
+5. **Revised architecture (Milestones 5–6).** Reviewers must emit executable checks. The control plane runs them in a
+   container and confirms a failure only if its expected value traces to a requirement or is corroborated.
+   Untraceable or conflicting evidence escalates instead of blocking or approving. The gate re-verifies the final
+   commit.
+6. **Evidence, including against ourselves.** The labelled evaluation measured the difference above. It also
+   exposed three defects in our own evidence pipeline. Different models "confirmed" a defect in a *correct* change
+   because an expected exception was compared as a string. A mis-escaped backslash made a model's check test a
+   different input. And valid checks were discarded or not counted as an inspection because a model wrote the
+   function name in the prompt's inventory format, which escalated almost every correct change. The first real run
+   then showed exactly that escalation. Each defect got a regression test, and the cached reviews were re-scored
+   with no new inference (D23).
+7. **Outcome.** The selected panel (phi4 + qwen3) caught 6 of 9 defects, with 1 false approval and no false blocks,
+   and approved 8 of 9 correct changes. The remaining cost is honest uncertainty: 2 of 18 cases escalated to a
+   human, and the numbers come from the dataset the fixes were found on.
+
+## Evidence
+
+Every workflow is persisted in SQLite: steps, attempts, iterations, reviews, model calls, tool calls, test runs and
+the audit log. `python -m systemfactory export ID` writes a sanitized package (secrets redacted, local paths
+rewritten). Each manifest records the System Factory revision **at submission** and, separately, at export.
+`tests/test_evidence_integrity.py` checks every committed package: both revisions must exist in history and be
+clean. Packages: [examples/evidence/](examples/evidence/).
+
+## Tests and CI
 
 ```powershell
 .\scripts\test.ps1
 ```
 
-The suite is deterministic and needs no Ollama, network or LLM. Provider-failure paths are tested against a
-closed local port. Real-inference runs are in `scripts/real_demo.py` and `scripts/eval_reviewers.py` and are not
-part of the suite.
+The suite is deterministic: no Ollama, GPU or network. Provider failures are tested against a closed local port.
+GitHub Actions runs on **Windows and Ubuntu**: ruff, mypy, the full suite under coverage with a minimum of 85% on the
+control-plane modules (95% measured locally), and, on Linux, the Docker sandbox tests against the real image.
+Real-model evaluation runs only from a separate, manually dispatched workflow on a trusted self-hosted runner.
+Pull-request code never reaches that runner, and the workflow uses no secrets.
 
-## What remains unverified
+Developer loop: `pip install -r requirements.txt -r requirements-dev.txt -c constraints.txt`, then
+`python -m ruff check .`, `python -m mypy systemfactory evaluation`, `.\scripts\test.ps1`.
 
-See [MILESTONE5_STATUS.md](MILESTONE5_STATUS.md). In short: real-LLM scenarios B–E have **not** been run end to end
-with the final code; the reviewer-check mechanism was benchmarked on 5 labeled patches only; the default Reviewer B
-model scored lower than phi4 in that benchmark; and isolation is process-level, not a container.
+## Configuration
+
+All settings are environment variables; [.env.example](.env.example) lists them.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `SF_RUNTIME` | `simulated` | default runtime for new workflows |
+| `SF_DATA_DIR` | `./data` | SQLite DB, generated demo repository, worktrees, evidence |
+| `SF_EXECUTION` | `local` | execution backend for the simulated runtime (the `ollama` runtime always uses `docker`) |
+| `SF_SANDBOX_IMAGE` | `systemfactory-sandbox:1` | sandbox image |
+| `SF_OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama server |
+| `SF_CODER_MODEL` / `SF_REVIEWER_A_MODEL` / `SF_REVIEWER_B_MODEL` | `qwen2.5-coder:14b` / `phi4:14b` / `qwen3:14b` | models |
+| `SF_OLLAMA_TIMEOUT` | `300` | seconds per model call |
+
+Per-workflow budgets (iterations, loop time, tokens, cost, test runs, repair candidates) are in
+`Settings.default_budget` ([config.py](systemfactory/config.py)).
+
+## Design decisions
+
+[DECISIONS.md](DECISIONS.md) records each decision as problem, solution, tradeoff and evidence. The ones that shaped
+the current system: D13 (review inside the loop), D16 (stall detection escalates), D18 (executable checks), D19 (one
+provider is one provider), D21 (fail-closed Docker sandbox), D22 (evidence states and grounding) and D23 (measured
+reviewer selection). Architecture: [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Limitations
+
+- **Small evaluation.** 23 cases, 18 comparable across models, all synthetic and small. The panels differ by one case.
+- **Evaluation on the tuning set.** The three pipeline fixes were found on the evaluation dataset; the post-fix
+  numbers are optimistic. Lexical grounding can also confirm a wrong expectation when a requirement quotes an error
+  message but not its condition.
+- **Slow, occasionally empty Reviewer B.** qwen3:14b averaged 43 s per review and returned 1 empty reply in 19.
+- **One provider.** All models run on local Ollama. No second provider has been evaluated.
+- **Container, not VM.** The sandbox shares the host kernel. Git runs on the host (read-only use of target files).
+  Dependency installation from a target repository is not supported.
+- **Bug fixes only.** The coding step implements fixes that have a failing reproduction test; features are handed to
+  a human.
+- **Local, single-user.** No authentication; the API binds to 127.0.0.1 and rejects cross-site and rebinding
+  requests.
+
+## Roadmap
+
+- A larger, externally sourced issue set and repeated runs, to measure an automation rate.
+- Semantic (not only lexical) requirement grounding, to reduce escalations.
+- Run qwen3 with thinking disabled and re-measure it on a held-out case set before relying on the change.
+- A second provider, behind the existing adapter interface, with explicit budget approval.
+- Dependency installation inside the sandbox, under a separate trust policy.
 
 ## Repository layout
 
 ```
-systemfactory/   orchestrator, statemachine, store, roles, loop (aggregation/stall rules), repair (simulated coder),
-                 coders (Ollama coding agent), reviewers (simulated, Ollama, Claude, command adapters),
-                 llm (Ollama client + call recorder), evidence (export), sandbox, api, cli, static/ (dashboard)
-demo/shopcart_template/   intentionally buggy demo library (copied into data/ as its own git repo)
-scripts/         setup/start/test/pull_models (PowerShell), check_models, real_demo, eval_reviewers
-tests/           deterministic unit and end-to-end tests
+systemfactory/   orchestrator, statemachine, store, roles, loop (evidence + decisions), execution (backends),
+                 repair (deterministic coder), coders (LLM agent), reviewers, llm, evidence, sandbox, api, cli, static/
+evaluation/      labelled reviewer evaluation: dataset, labels, harness, runner, results/
+sandbox/         Dockerfile, hash-pinned requirements, trust policy
+demo/            intentionally buggy demo library (copied into data/ as its own git repository)
+scripts/         setup, start, test, build_sandbox_image, pull_models, check_models, real_demo
+tests/           deterministic unit, scenario, sandbox and evidence-integrity tests
+examples/        sanitized evidence packages
 ```
 
-Documents: [ARCHITECTURE.md](ARCHITECTURE.md), [DECISIONS.md](DECISIONS.md), [DEMO.md](DEMO.md),
-[PRESENTATION.md](PRESENTATION.md), [MILESTONE5_STATUS.md](MILESTONE5_STATUS.md).
+Status documents: [MILESTONE6_STATUS.md](MILESTONE6_STATUS.md) (current), [MILESTONE5_STATUS.md](MILESTONE5_STATUS.md).

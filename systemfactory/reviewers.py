@@ -397,8 +397,28 @@ def validate_check(check: dict, inventory: list[dict]) -> tuple[str | None, str 
         return _validate_check(check, inventory)
 
 
+def check_function(check: dict) -> str:
+    """The function a check targets. A clean (dotted) name is used as given. Models often copy the prompt's inventory
+    format instead (`pkg/mod.py: \\`def f(x) -> int:\\``); then the callee of the call is authoritative, qualified
+    with the module of a `.py` path in the field if there is one. The call itself is validated separately."""
+    raw = (check.get("function") or "").strip().removesuffix("()")
+    if re.fullmatch(r"[A-Za-z_][\w]*(?:\.[A-Za-z_]\w*)*", raw):
+        return raw
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", SyntaxWarning)
+            expr = ast.parse((check.get("call") or "").strip(), mode="eval").body
+    except SyntaxError:
+        return raw
+    if not (isinstance(expr, ast.Call) and isinstance(expr.func, ast.Name)):
+        return raw
+    path = re.search(r"([A-Za-z_][\w/\\]*)\.py\b", raw)
+    module = path.group(1).replace("\\", "/").strip("/").replace("/", ".") if path else None
+    return f"{module}.{expr.func.id}" if module else expr.func.id
+
+
 def _validate_check(check: dict, inventory: list[dict]) -> tuple[str | None, str | None]:
-    qualified = (check.get("function") or "").strip().removesuffix("()")
+    qualified = check_function(check)
     name = qualified.split(".")[-1]
     module = qualified.rsplit(".", 1)[0] if "." in qualified else None
     matches = [f for f in inventory if f["function"] == name and (module is None or f["module"] == module)]
@@ -579,7 +599,7 @@ class OllamaReviewer:
         checks = []
         for c in data.get("checks", []):
             probe, problem = validate_check(c, inventory)
-            name = (c.get("function") or "").removesuffix("()").split(".")[-1]
+            name = check_function(c).split(".")[-1]
             checks.append({"function": name, "call": c.get("call"), "expected": c.get("expected"),
                            "rule": (c.get("rule") or "")[:300], "probe": probe, "valid": probe is not None,
                            "invalid_reason": problem,
@@ -641,7 +661,7 @@ def make(name: str, options: dict | None = None, settings=None) -> Reviewer:
     if name in REVIEWER_FOCUS:
         models = options.get("models", {})
         default = {"ollama-a": getattr(settings, "reviewer_a_model", "phi4:14b"),
-                   "ollama-b": getattr(settings, "reviewer_b_model", "gemma3:12b")}[name]
+                   "ollama-b": getattr(settings, "reviewer_b_model", "qwen3:14b")}[name]
         model = models.get("reviewer_a" if name == "ollama-a" else "reviewer_b") or default
         return OllamaReviewer(name, model, base_url=options.get("ollama_url"), timeout=options.get("llm_timeout"))
     if name not in FACTORIES:

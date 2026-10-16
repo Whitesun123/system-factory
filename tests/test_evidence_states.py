@@ -240,3 +240,25 @@ def test_mis_escaped_backslash_in_a_check_is_invalid_not_evidence():
     ok, why = reviewers.validate_check({"function": "template_path", "call": r"template_path('a\\b')",
                                         "expected": "ValueError('invalid template name')"}, inv)
     assert ok and why is None  # a properly escaped backslash is fine
+
+
+def test_check_naming_the_function_in_inventory_format_is_resolved_from_the_call():
+    # found by the evaluation (gemma3:12b) and the first real run: the model copied the prompt's inventory format
+    inv = [{"function": "shipping_cost", "module": "shopcart.checkout"}]
+    c = {"function": "shopcart/checkout.py: `def shipping_cost(subtotal: float) -> float:`",
+         "call": "shipping_cost(49.99)", "expected": "4.99"}
+    probe, why = reviewers.validate_check(c, inv)
+    assert why is None and probe.startswith(">>> from shopcart.checkout import shipping_cost\n")
+    # the call stays authoritative and fully validated: a path to another module or a non-call is still invalid
+    assert reviewers.validate_check({**c, "function": "shopcart/other.py: shipping_cost"}, inv)[0] is None
+    assert reviewers.validate_check({**c, "call": "__import__('os').system('x')"}, inv)[0] is None
+
+
+def test_inspection_uses_the_validated_probe_target_not_the_free_text_field():
+    review = {"reviewer": "rev-b", "verdict": "approve", "simulated": False, "findings": [], "checks": [
+        {"function": "py: `def shipping_banner(subtotal: float) -> str:`", "call": "shipping_banner(80.0)",
+         "expected": "'Your order ships free!'", "file": "shopcart/checkout.py",
+         "probe": ">>> from shopcart.checkout import shipping_banner\n>>> shipping_banner(80.0)\n'Your order ships free!'\n"}]}
+    a = loop.aggregate([review], TESTS_GREEN, lambda src: (True, "ok"), requirements=REQS,
+                       changed_functions={"shipping_banner"})
+    assert "rev-b" in a["inspected_reviews"] and a["checks"][0]["function"] == "shipping_banner"

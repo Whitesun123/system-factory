@@ -229,7 +229,11 @@ def aggregate(reviews: list[dict], tests: dict, confirm_probe: Callable[[str], t
         findings += fs
         valid_checks = 0
         for c in r.get("checks", []) or []:
-            row = {"reviewer": r["reviewer"], "function": c.get("function"), "call": c.get("call"),
+            # A validated probe names its target authoritatively (`from <module> import <function>`); the
+            # model's free-text `function` field is only a fallback.
+            target = re.match(r">>> from [\w.]+ import (\w+)\n", c.get("probe") or "")
+            row = {"reviewer": r["reviewer"], "function": target.group(1) if target else c.get("function"),
+                   "call": c.get("call"),
                    "expected": c.get("expected"), "rule": c.get("rule"), "valid": bool(c.get("probe")),
                    "probe": c.get("probe"), "file": c.get("file"), "invalid_reason": c.get("invalid_reason")}
             if row["valid"]:

@@ -35,7 +35,7 @@ class Settings:
     ollama_url: str = field(default_factory=lambda: os.environ.get("SF_OLLAMA_URL", "http://127.0.0.1:11434"))
     coder_model: str = field(default_factory=lambda: os.environ.get("SF_CODER_MODEL", "qwen2.5-coder:14b"))
     reviewer_a_model: str = field(default_factory=lambda: os.environ.get("SF_REVIEWER_A_MODEL", "phi4:14b"))
-    reviewer_b_model: str = field(default_factory=lambda: os.environ.get("SF_REVIEWER_B_MODEL", "gemma3:12b"))
+    reviewer_b_model: str = field(default_factory=lambda: os.environ.get("SF_REVIEWER_B_MODEL", "qwen3:14b"))
     coder_max_turns: int = field(default_factory=lambda: int(os.environ.get("SF_CODER_MAX_TURNS", "6")))
     # Execution backend for target/model-generated code: "local" (process isolation) or "docker" (container).
     execution: str = field(default_factory=lambda: os.environ.get("SF_EXECUTION", "local"))

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-15T23:57:03+0200",
+  "generated_at": "2026-10-16T02:50:36+0200",
   "dataset_cases": 23,
   "executed_cases": 23,
   "not_executed": [
@@ -111,11 +111,11 @@
   },
   "ollama_version": "0.30.8",
   "platform": "Windows-11-10.0.26200-SP0",
-  "gpu_peak_vram_mib": 3157,
+  "gpu_peak_vram_mib": 906,
   "inference_minutes": 30.41,
   "new_inference_minutes_this_run": 0.0,
   "budget_minutes": 30.0,
-  "wall_minutes": 4.03,
+  "wall_minutes": 3.89,
   "execution_backend": "docker",
   "summary": {
     "ollama-a=phi4:14b": {
@@ -153,7 +153,7 @@
         "input_mean": 1068,
         "output_mean": 502
       },
-      "check_validity_rate": 0.863,
+      "check_validity_rate": 1.0,
       "errors": 0
     },
     "ollama-b=gemma3:12b": {
@@ -172,16 +172,16 @@
       },
       "pipeline": {
         "cases": 18,
-        "true_positives": 1,
-        "false_approvals": 2,
-        "false_blocks": 0,
-        "true_negatives": 2,
-        "escalations": 13,
+        "true_positives": 4,
+        "false_approvals": 3,
+        "false_blocks": 1,
+        "true_negatives": 6,
+        "escalations": 4,
         "errors": 0,
-        "precision": 1.0,
-        "recall": 0.111,
-        "false_approval_rate": 0.222,
-        "false_block_rate": 0.0
+        "precision": 0.8,
+        "recall": 0.444,
+        "false_approval_rate": 0.333,
+        "false_block_rate": 0.111
       },
       "latency_s": {
         "mean": 18.56,
@@ -191,7 +191,7 @@
         "input_mean": 1159,
         "output_mean": 580
       },
-      "check_validity_rate": 0.0,
+      "check_validity_rate": 0.978,
       "errors": 0
     },
     "ollama-b=mistral-nemo:12b": {
@@ -267,7 +267,7 @@
         "input_mean": 1052,
         "output_mean": 597
       },
-      "check_validity_rate": 0.9,
+      "check_validity_rate": 0.975,
       "errors": 0
     },
     "ollama-b=qwen3:14b": {
@@ -289,8 +289,8 @@
         "true_positives": 5,
         "false_approvals": 1,
         "false_blocks": 0,
-        "true_negatives": 2,
-        "escalations": 10,
+        "true_negatives": 10,
+        "escalations": 2,
         "errors": 1,
         "precision": 1.0,
         "recall": 0.556,
@@ -305,7 +305,7 @@
         "input_mean": 2160,
         "output_mean": 510
       },
-      "check_validity_rate": 0.462,
+      "check_validity_rate": 0.978,
       "errors": 1
     },
     "panel:ollama-a=phi4:14b+ollama-b=gemma3:12b": {
@@ -326,14 +326,14 @@
         "cases": 18,
         "true_positives": 7,
         "false_approvals": 1,
-        "false_blocks": 0,
-        "true_negatives": 2,
-        "escalations": 8,
+        "false_blocks": 1,
+        "true_negatives": 5,
+        "escalations": 4,
         "errors": 0,
-        "precision": 1.0,
+        "precision": 0.875,
         "recall": 0.778,
         "false_approval_rate": 0.111,
-        "false_block_rate": 0.0
+        "false_block_rate": 0.111
       }
     },
     "panel:ollama-a=phi4:14b+ollama-b=mistral-nemo:12b": {
@@ -411,8 +411,8 @@
         "true_positives": 6,
         "false_approvals": 1,
         "false_blocks": 0,
-        "true_negatives": 1,
-        "escalations": 10,
+        "true_negatives": 9,
+        "escalations": 2,
         "errors": 1,
         "precision": 1.0,
         "recall": 0.667,
@@ -514,7 +514,7 @@
         "false_block_rate": 0.0
       },
       "latency_s": {
-        "mean": 0.15,
+        "mean": 0.13,
         "p95": 0.0
       },
       "tokens": {
@@ -542,7 +542,7 @@
           "input_tokens": 0,
           "output_tokens": 0,
           "model_digest": null,
-          "seconds": 0.84,
+          "seconds": 0.76,
           "llm_calls": []
         },
         "simulated-diff": {
@@ -1113,18 +1113,18 @@
         },
         "ollama-b=gemma3:12b": {
           "raw": "approve",
-          "pipeline": "escalate",
-          "blocking": 0,
+          "pipeline": "block",
+          "blocking": 1,
           "unresolved": 0,
-          "inspected": 0,
+          "inspected": 1,
           "checks_total": 6,
-          "checks_valid": 0,
+          "checks_valid": 6,
           "check_states": {
-            "confirmed": 0,
+            "confirmed": 1,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 6
+            "passed": 5,
+            "invalid": 0
           }
         },
         "ollama-b=mistral-nemo:12b": {
@@ -1194,17 +1194,17 @@
         "panel:ollama-a=phi4:14b+ollama-b=gemma3:12b": {
           "raw": "approve",
           "pipeline": "block",
-          "blocking": 1,
+          "blocking": 2,
           "unresolved": 0,
-          "inspected": 1,
+          "inspected": 2,
           "checks_total": 12,
-          "checks_valid": 6,
+          "checks_valid": 12,
           "check_states": {
-            "confirmed": 1,
+            "confirmed": 2,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 5,
-            "invalid": 6
+            "passed": 10,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=mistral-nemo:12b": {
@@ -1241,7 +1241,7 @@
           "input_tokens": 0,
           "output_tokens": 0,
           "model_digest": null,
-          "seconds": 2.72,
+          "seconds": 2.31,
           "llm_calls": []
         },
         "simulated-diff": {
@@ -1764,13 +1764,13 @@
           "unresolved": 0,
           "inspected": 1,
           "checks_total": 6,
-          "checks_valid": 0,
+          "checks_valid": 6,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 6
+            "passed": 6,
+            "invalid": 0
           }
         },
         "ollama-b=phi4:14b": {
@@ -1780,45 +1780,45 @@
           "unresolved": 0,
           "inspected": 1,
           "checks_total": 6,
-          "checks_valid": 0,
+          "checks_valid": 6,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 6
+            "passed": 6,
+            "invalid": 0
           }
         },
         "ollama-b=qwen3:14b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 0,
+          "inspected": 1,
           "checks_total": 6,
-          "checks_valid": 0,
+          "checks_valid": 6,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 6
+            "passed": 6,
+            "invalid": 0
           }
         },
         "ollama-b=gemma3:12b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 0,
+          "inspected": 1,
           "checks_total": 6,
-          "checks_valid": 0,
+          "checks_valid": 6,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 6
+            "passed": 6,
+            "invalid": 0
           }
         },
         "ollama-b=mistral-nemo:12b": {
@@ -1860,45 +1860,45 @@
           "unresolved": 0,
           "inspected": 2,
           "checks_total": 12,
-          "checks_valid": 0,
+          "checks_valid": 12,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 12
+            "passed": 12,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=qwen3:14b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 1,
+          "inspected": 2,
           "checks_total": 12,
-          "checks_valid": 0,
+          "checks_valid": 12,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 12
+            "passed": 12,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=gemma3:12b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 1,
+          "inspected": 2,
           "checks_total": 12,
-          "checks_valid": 0,
+          "checks_valid": 12,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 12
+            "passed": 12,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=mistral-nemo:12b": {
@@ -1908,13 +1908,13 @@
           "unresolved": 0,
           "inspected": 1,
           "checks_total": 10,
-          "checks_valid": 0,
+          "checks_valid": 6,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 10
+            "passed": 6,
+            "invalid": 4
           }
         }
       }
@@ -2381,18 +2381,18 @@
         },
         "ollama-b=gemma3:12b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 0,
+          "inspected": 1,
           "checks_total": 6,
-          "checks_valid": 0,
+          "checks_valid": 6,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 6
+            "passed": 6,
+            "invalid": 0
           }
         },
         "ollama-b=mistral-nemo:12b": {
@@ -2450,18 +2450,18 @@
         },
         "panel:ollama-a=phi4:14b+ollama-b=gemma3:12b": {
           "raw": "approve",
-          "pipeline": "block",
-          "blocking": 1,
-          "unresolved": 0,
-          "inspected": 1,
+          "pipeline": "escalate",
+          "blocking": 0,
+          "unresolved": 1,
+          "inspected": 2,
           "checks_total": 10,
-          "checks_valid": 4,
+          "checks_valid": 10,
           "check_states": {
-            "confirmed": 1,
+            "confirmed": 0,
             "unsupported": 0,
-            "conflicting": 0,
-            "passed": 3,
-            "invalid": 6
+            "conflicting": 1,
+            "passed": 9,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=mistral-nemo:12b": {
@@ -2968,34 +2968,34 @@
         },
         "ollama-b=qwen3:14b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 0,
+          "inspected": 1,
           "checks_total": 5,
-          "checks_valid": 0,
+          "checks_valid": 5,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 5
+            "passed": 5,
+            "invalid": 0
           }
         },
         "ollama-b=gemma3:12b": {
           "raw": "approve",
           "pipeline": "escalate",
           "blocking": 0,
-          "unresolved": 0,
-          "inspected": 0,
+          "unresolved": 1,
+          "inspected": 1,
           "checks_total": 6,
-          "checks_valid": 0,
+          "checks_valid": 6,
           "check_states": {
             "confirmed": 0,
-            "unsupported": 0,
+            "unsupported": 1,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 6
+            "passed": 5,
+            "invalid": 0
           }
         },
         "ollama-b=mistral-nemo:12b": {
@@ -3048,34 +3048,34 @@
         },
         "panel:ollama-a=phi4:14b+ollama-b=qwen3:14b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 1,
+          "inspected": 2,
           "checks_total": 10,
-          "checks_valid": 5,
+          "checks_valid": 10,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 5,
-            "invalid": 5
+            "passed": 10,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=gemma3:12b": {
           "raw": "approve",
           "pipeline": "escalate",
           "blocking": 0,
-          "unresolved": 0,
-          "inspected": 1,
+          "unresolved": 1,
+          "inspected": 2,
           "checks_total": 11,
-          "checks_valid": 5,
+          "checks_valid": 11,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
-            "conflicting": 0,
-            "passed": 5,
-            "invalid": 6
+            "conflicting": 1,
+            "passed": 10,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=mistral-nemo:12b": {
@@ -3582,34 +3582,34 @@
         },
         "ollama-b=qwen3:14b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 0,
+          "inspected": 1,
           "checks_total": 6,
-          "checks_valid": 0,
+          "checks_valid": 6,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 6
+            "passed": 6,
+            "invalid": 0
           }
         },
         "ollama-b=gemma3:12b": {
           "raw": "approve",
           "pipeline": "escalate",
           "blocking": 0,
-          "unresolved": 0,
-          "inspected": 0,
+          "unresolved": 1,
+          "inspected": 1,
           "checks_total": 6,
-          "checks_valid": 0,
+          "checks_valid": 6,
           "check_states": {
             "confirmed": 0,
-            "unsupported": 0,
+            "unsupported": 1,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 6
+            "passed": 5,
+            "invalid": 0
           }
         },
         "ollama-b=mistral-nemo:12b": {
@@ -3662,34 +3662,34 @@
         },
         "panel:ollama-a=phi4:14b+ollama-b=qwen3:14b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 1,
+          "inspected": 2,
           "checks_total": 9,
-          "checks_valid": 3,
+          "checks_valid": 9,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 3,
-            "invalid": 6
+            "passed": 9,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=gemma3:12b": {
           "raw": "approve",
           "pipeline": "escalate",
           "blocking": 0,
-          "unresolved": 0,
-          "inspected": 1,
+          "unresolved": 1,
+          "inspected": 2,
           "checks_total": 9,
-          "checks_valid": 3,
+          "checks_valid": 9,
           "check_states": {
             "confirmed": 0,
-            "unsupported": 0,
+            "unsupported": 1,
             "conflicting": 0,
-            "passed": 3,
-            "invalid": 6
+            "passed": 8,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=mistral-nemo:12b": {
@@ -4168,18 +4168,18 @@
         },
         "ollama-b=gemma3:12b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 0,
+          "inspected": 1,
           "checks_total": 4,
-          "checks_valid": 0,
+          "checks_valid": 4,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 4
+            "passed": 4,
+            "invalid": 0
           }
         },
         "ollama-b=mistral-nemo:12b": {
@@ -4248,18 +4248,18 @@
         },
         "panel:ollama-a=phi4:14b+ollama-b=gemma3:12b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 1,
+          "inspected": 2,
           "checks_total": 8,
-          "checks_valid": 4,
+          "checks_valid": 8,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 4,
-            "invalid": 4
+            "passed": 8,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=mistral-nemo:12b": {
@@ -4756,18 +4756,18 @@
         },
         "ollama-b=qwen3:14b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 0,
+          "inspected": 1,
           "checks_total": 6,
-          "checks_valid": 0,
+          "checks_valid": 6,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 6
+            "passed": 6,
+            "invalid": 0
           }
         },
         "ollama-b=gemma3:12b": {
@@ -4777,13 +4777,13 @@
           "unresolved": 0,
           "inspected": 1,
           "checks_total": 4,
-          "checks_valid": 0,
+          "checks_valid": 4,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 4
+            "passed": 4,
+            "invalid": 0
           }
         },
         "ollama-b=mistral-nemo:12b": {
@@ -4836,18 +4836,18 @@
         },
         "panel:ollama-a=phi4:14b+ollama-b=qwen3:14b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 1,
+          "inspected": 2,
           "checks_total": 10,
-          "checks_valid": 4,
+          "checks_valid": 10,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 4,
-            "invalid": 6
+            "passed": 10,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=gemma3:12b": {
@@ -4857,13 +4857,13 @@
           "unresolved": 0,
           "inspected": 2,
           "checks_total": 8,
-          "checks_valid": 4,
+          "checks_valid": 8,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 4,
-            "invalid": 4
+            "passed": 8,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=mistral-nemo:12b": {
@@ -5364,18 +5364,18 @@
         },
         "ollama-b=gemma3:12b": {
           "raw": "approve",
-          "pipeline": "escalate",
-          "blocking": 0,
+          "pipeline": "block",
+          "blocking": 1,
           "unresolved": 0,
-          "inspected": 0,
+          "inspected": 1,
           "checks_total": 5,
-          "checks_valid": 0,
+          "checks_valid": 5,
           "check_states": {
-            "confirmed": 0,
+            "confirmed": 1,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 5
+            "passed": 4,
+            "invalid": 0
           }
         },
         "ollama-b=mistral-nemo:12b": {
@@ -5445,17 +5445,17 @@
         "panel:ollama-a=phi4:14b+ollama-b=gemma3:12b": {
           "raw": "approve",
           "pipeline": "block",
-          "blocking": 1,
+          "blocking": 2,
           "unresolved": 0,
-          "inspected": 1,
+          "inspected": 2,
           "checks_total": 8,
-          "checks_valid": 3,
+          "checks_valid": 8,
           "check_states": {
-            "confirmed": 1,
+            "confirmed": 2,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 2,
-            "invalid": 5
+            "passed": 6,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=mistral-nemo:12b": {
@@ -5957,18 +5957,18 @@
         },
         "ollama-b=gemma3:12b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 0,
+          "inspected": 1,
           "checks_total": 4,
-          "checks_valid": 0,
+          "checks_valid": 4,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 4
+            "passed": 4,
+            "invalid": 0
           }
         },
         "ollama-b=mistral-nemo:12b": {
@@ -6037,18 +6037,18 @@
         },
         "panel:ollama-a=phi4:14b+ollama-b=gemma3:12b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 1,
+          "inspected": 2,
           "checks_total": 7,
-          "checks_valid": 3,
+          "checks_valid": 7,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 3,
-            "invalid": 4
+            "passed": 7,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=mistral-nemo:12b": {
@@ -6552,18 +6552,18 @@
         },
         "ollama-b=gemma3:12b": {
           "raw": "approve",
-          "pipeline": "approve",
+          "pipeline": "escalate",
           "blocking": 0,
-          "unresolved": 0,
+          "unresolved": 1,
           "inspected": 1,
           "checks_total": 5,
-          "checks_valid": 0,
+          "checks_valid": 5,
           "check_states": {
             "confirmed": 0,
-            "unsupported": 0,
+            "unsupported": 1,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 5
+            "passed": 4,
+            "invalid": 0
           }
         },
         "ollama-b=mistral-nemo:12b": {
@@ -6633,17 +6633,17 @@
         "panel:ollama-a=phi4:14b+ollama-b=gemma3:12b": {
           "raw": "approve",
           "pipeline": "block",
-          "blocking": 1,
+          "blocking": 2,
           "unresolved": 0,
           "inspected": 2,
           "checks_total": 8,
-          "checks_valid": 3,
+          "checks_valid": 8,
           "check_states": {
-            "confirmed": 1,
+            "confirmed": 2,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 2,
-            "invalid": 5
+            "passed": 6,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=mistral-nemo:12b": {
@@ -7164,18 +7164,18 @@
         },
         "ollama-b=gemma3:12b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 0,
+          "inspected": 1,
           "checks_total": 6,
-          "checks_valid": 0,
+          "checks_valid": 6,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 6
+            "passed": 6,
+            "invalid": 0
           }
         },
         "ollama-b=mistral-nemo:12b": {
@@ -7247,15 +7247,15 @@
           "pipeline": "escalate",
           "blocking": 0,
           "unresolved": 1,
-          "inspected": 1,
+          "inspected": 2,
           "checks_total": 9,
-          "checks_valid": 3,
+          "checks_valid": 9,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 3,
-            "invalid": 6
+            "passed": 9,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=mistral-nemo:12b": {
@@ -7703,16 +7703,16 @@
           "raw": "approve",
           "pipeline": "escalate",
           "blocking": 0,
-          "unresolved": 0,
-          "inspected": 0,
+          "unresolved": 1,
+          "inspected": 1,
           "checks_total": 5,
-          "checks_valid": 0,
+          "checks_valid": 5,
           "check_states": {
             "confirmed": 0,
-            "unsupported": 0,
+            "unsupported": 1,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 5
+            "passed": 4,
+            "invalid": 0
           }
         },
         "ollama-b=mistral-nemo:12b": {
@@ -7783,16 +7783,16 @@
           "raw": "approve",
           "pipeline": "block",
           "blocking": 1,
-          "unresolved": 0,
-          "inspected": 1,
+          "unresolved": 1,
+          "inspected": 2,
           "checks_total": 8,
-          "checks_valid": 3,
+          "checks_valid": 8,
           "check_states": {
             "confirmed": 1,
-            "unsupported": 0,
+            "unsupported": 1,
             "conflicting": 0,
-            "passed": 2,
-            "invalid": 5
+            "passed": 6,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=mistral-nemo:12b": {
@@ -8205,34 +8205,34 @@
         },
         "ollama-b=qwen3:14b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 0,
+          "inspected": 1,
           "checks_total": 3,
-          "checks_valid": 0,
+          "checks_valid": 3,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 3
+            "passed": 3,
+            "invalid": 0
           }
         },
         "ollama-b=gemma3:12b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 0,
+          "inspected": 1,
           "checks_total": 3,
-          "checks_valid": 0,
+          "checks_valid": 3,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 3
+            "passed": 3,
+            "invalid": 0
           }
         },
         "ollama-b=mistral-nemo:12b": {
@@ -8285,34 +8285,34 @@
         },
         "panel:ollama-a=phi4:14b+ollama-b=qwen3:14b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 1,
+          "inspected": 2,
           "checks_total": 5,
-          "checks_valid": 2,
+          "checks_valid": 5,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 2,
-            "invalid": 3
+            "passed": 5,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=gemma3:12b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 1,
+          "inspected": 2,
           "checks_total": 5,
-          "checks_valid": 2,
+          "checks_valid": 5,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 2,
-            "invalid": 3
+            "passed": 5,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=mistral-nemo:12b": {
@@ -8894,13 +8894,13 @@
           "unresolved": 0,
           "inspected": 1,
           "checks_total": 4,
-          "checks_valid": 0,
+          "checks_valid": 4,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 4
+            "passed": 4,
+            "invalid": 0
           }
         },
         "ollama-b=phi4:14b": {
@@ -8937,18 +8937,18 @@
         },
         "ollama-b=gemma3:12b": {
           "raw": "block",
-          "pipeline": "approve",
-          "blocking": 0,
+          "pipeline": "block",
+          "blocking": 1,
           "unresolved": 0,
           "inspected": 1,
           "checks_total": 6,
-          "checks_valid": 0,
+          "checks_valid": 4,
           "check_states": {
-            "confirmed": 0,
-            "unsupported": 0,
+            "confirmed": 1,
+            "unsupported": 1,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 6
+            "passed": 2,
+            "invalid": 2
           }
         },
         "ollama-b=mistral-nemo:12b": {
@@ -8990,13 +8990,13 @@
           "unresolved": 0,
           "inspected": 2,
           "checks_total": 9,
-          "checks_valid": 4,
+          "checks_valid": 8,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 4,
-            "invalid": 5
+            "passed": 8,
+            "invalid": 1
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=qwen3:14b": {
@@ -9006,29 +9006,29 @@
           "unresolved": 0,
           "inspected": 2,
           "checks_total": 10,
-          "checks_valid": 6,
+          "checks_valid": 10,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 6,
-            "invalid": 4
+            "passed": 10,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=gemma3:12b": {
           "raw": "block",
-          "pipeline": "approve",
-          "blocking": 0,
+          "pipeline": "block",
+          "blocking": 1,
           "unresolved": 0,
           "inspected": 2,
           "checks_total": 10,
-          "checks_valid": 0,
+          "checks_valid": 8,
           "check_states": {
-            "confirmed": 0,
-            "unsupported": 0,
+            "confirmed": 1,
+            "unsupported": 1,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 10
+            "passed": 6,
+            "invalid": 2
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=mistral-nemo:12b": {
@@ -9038,13 +9038,13 @@
           "unresolved": 1,
           "inspected": 2,
           "checks_total": 7,
-          "checks_valid": 3,
+          "checks_valid": 7,
           "check_states": {
             "confirmed": 0,
             "unsupported": 1,
             "conflicting": 0,
-            "passed": 2,
-            "invalid": 4
+            "passed": 6,
+            "invalid": 0
           }
         }
       }
@@ -9620,18 +9620,18 @@
         },
         "ollama-b=qwen3:14b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 0,
+          "inspected": 1,
           "checks_total": 8,
-          "checks_valid": 0,
+          "checks_valid": 7,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 8
+            "passed": 7,
+            "invalid": 1
           }
         },
         "ollama-b=gemma3:12b": {
@@ -9641,13 +9641,13 @@
           "unresolved": 0,
           "inspected": 1,
           "checks_total": 6,
-          "checks_valid": 0,
+          "checks_valid": 6,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 6
+            "passed": 6,
+            "invalid": 0
           }
         },
         "ollama-b=mistral-nemo:12b": {
@@ -9700,18 +9700,18 @@
         },
         "panel:ollama-a=phi4:14b+ollama-b=qwen3:14b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 1,
+          "inspected": 2,
           "checks_total": 13,
-          "checks_valid": 5,
+          "checks_valid": 12,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 5,
-            "invalid": 8
+            "passed": 12,
+            "invalid": 1
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=gemma3:12b": {
@@ -9721,13 +9721,13 @@
           "unresolved": 0,
           "inspected": 2,
           "checks_total": 11,
-          "checks_valid": 5,
+          "checks_valid": 11,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 5,
-            "invalid": 6
+            "passed": 11,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=mistral-nemo:12b": {
@@ -10250,18 +10250,18 @@
         },
         "ollama-b=gemma3:12b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 0,
+          "inspected": 1,
           "checks_total": 5,
-          "checks_valid": 0,
+          "checks_valid": 5,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 5
+            "passed": 5,
+            "invalid": 0
           }
         },
         "ollama-b=mistral-nemo:12b": {
@@ -10333,15 +10333,15 @@
           "pipeline": "block",
           "blocking": 1,
           "unresolved": 0,
-          "inspected": 1,
+          "inspected": 2,
           "checks_total": 9,
-          "checks_valid": 4,
+          "checks_valid": 9,
           "check_states": {
             "confirmed": 2,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 2,
-            "invalid": 5
+            "passed": 7,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=mistral-nemo:12b": {
@@ -10846,34 +10846,34 @@
         },
         "ollama-b=qwen3:14b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 0,
+          "inspected": 1,
           "checks_total": 6,
-          "checks_valid": 0,
+          "checks_valid": 5,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 6
+            "passed": 5,
+            "invalid": 1
           }
         },
         "ollama-b=gemma3:12b": {
           "raw": "approve",
-          "pipeline": "escalate",
-          "blocking": 0,
+          "pipeline": "block",
+          "blocking": 1,
           "unresolved": 0,
-          "inspected": 0,
+          "inspected": 1,
           "checks_total": 4,
-          "checks_valid": 0,
+          "checks_valid": 4,
           "check_states": {
-            "confirmed": 0,
-            "unsupported": 0,
+            "confirmed": 2,
+            "unsupported": 1,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 4
+            "passed": 1,
+            "invalid": 0
           }
         },
         "ollama-b=mistral-nemo:12b": {
@@ -10926,34 +10926,34 @@
         },
         "panel:ollama-a=phi4:14b+ollama-b=qwen3:14b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 1,
+          "inspected": 2,
           "checks_total": 10,
-          "checks_valid": 4,
+          "checks_valid": 9,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 4,
-            "invalid": 6
+            "passed": 9,
+            "invalid": 1
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=gemma3:12b": {
           "raw": "approve",
-          "pipeline": "escalate",
-          "blocking": 0,
+          "pipeline": "block",
+          "blocking": 1,
           "unresolved": 0,
-          "inspected": 1,
+          "inspected": 2,
           "checks_total": 8,
-          "checks_valid": 4,
+          "checks_valid": 8,
           "check_states": {
-            "confirmed": 0,
-            "unsupported": 0,
+            "confirmed": 2,
+            "unsupported": 1,
             "conflicting": 0,
-            "passed": 4,
-            "invalid": 4
+            "passed": 5,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=mistral-nemo:12b": {
@@ -11473,33 +11473,33 @@
         "ollama-b=qwen3:14b": {
           "raw": "approve",
           "pipeline": "block",
-          "blocking": 1,
+          "blocking": 2,
           "unresolved": 0,
           "inspected": 1,
           "checks_total": 5,
-          "checks_valid": 0,
+          "checks_valid": 5,
           "check_states": {
-            "confirmed": 0,
+            "confirmed": 1,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 5
+            "passed": 4,
+            "invalid": 0
           }
         },
         "ollama-b=gemma3:12b": {
           "raw": "block",
           "pipeline": "block",
-          "blocking": 1,
+          "blocking": 2,
           "unresolved": 0,
           "inspected": 1,
           "checks_total": 6,
-          "checks_valid": 0,
+          "checks_valid": 6,
           "check_states": {
-            "confirmed": 0,
+            "confirmed": 3,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 6
+            "passed": 3,
+            "invalid": 0
           }
         },
         "ollama-b=mistral-nemo:12b": {
@@ -11554,32 +11554,32 @@
           "raw": "approve",
           "pipeline": "block",
           "blocking": 1,
-          "unresolved": 0,
+          "unresolved": 1,
           "inspected": 2,
           "checks_total": 9,
-          "checks_valid": 4,
+          "checks_valid": 9,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
-            "conflicting": 0,
-            "passed": 4,
-            "invalid": 5
+            "conflicting": 1,
+            "passed": 8,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=gemma3:12b": {
           "raw": "block",
           "pipeline": "block",
-          "blocking": 1,
+          "blocking": 2,
           "unresolved": 0,
           "inspected": 2,
           "checks_total": 10,
-          "checks_valid": 4,
+          "checks_valid": 10,
           "check_states": {
-            "confirmed": 0,
+            "confirmed": 1,
             "unsupported": 0,
-            "conflicting": 0,
-            "passed": 4,
-            "invalid": 6
+            "conflicting": 2,
+            "passed": 7,
+            "invalid": 0
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=mistral-nemo:12b": {
@@ -11902,18 +11902,18 @@
         },
         "ollama-b=qwen3:14b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 0,
+          "inspected": 1,
           "checks_total": 5,
-          "checks_valid": 0,
+          "checks_valid": 5,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 0,
-            "invalid": 5
+            "passed": 5,
+            "invalid": 0
           }
         },
         "panel:simulated-spec+simulated-diff": {
@@ -11950,18 +11950,18 @@
         },
         "panel:ollama-a=phi4:14b+ollama-b=qwen3:14b": {
           "raw": "approve",
-          "pipeline": "escalate",
+          "pipeline": "approve",
           "blocking": 0,
           "unresolved": 0,
-          "inspected": 1,
+          "inspected": 2,
           "checks_total": 8,
-          "checks_valid": 3,
+          "checks_valid": 8,
           "check_states": {
             "confirmed": 0,
             "unsupported": 0,
             "conflicting": 0,
-            "passed": 3,
-            "invalid": 5
+            "passed": 8,
+            "invalid": 0
           }
         }
       }

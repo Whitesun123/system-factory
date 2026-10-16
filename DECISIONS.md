@@ -319,18 +319,26 @@ Test names refer to files in `tests/`.
   twice, once by the raw verdict and once by the full pipeline decision (checks executed in the Docker sandbox,
   evidence classified). Every model call is checkpointed in a cache keyed by case, role, model, digest and prompt.
   The inference budget is cumulative across runs, and pairs that were not run are listed, not extrapolated.
-- **Findings:** Raw verdicts were close to useless: on the 18 cases every model ran, the models approved nearly every
-  patch. Executing their proposed checks caught 6 of 9 defects for phi4 with 0 false blocks. The deterministic
-  baseline caught 0 of 9. The evaluation also exposed two pipeline defects that had produced *false blocks*: an
-  expected exception was compared as a string, and a mis-escaped backslash in a model's check tested a different
-  input. Both are fixed with regression tests. The cached reviews were re-scored with no new inference
-  (`inference-run-1.json` keeps the scores from before the fix).
-- **Selection:** Reviewer A `phi4:14b`, Reviewer B `gemma3:12b`. On the comparable subset the phi4 + gemma3 panel
-  had the fewest false approvals (1), no false blocks, the most catches (7 of 9) and no errors. phi4 + qwen3:14b
-  and phi4 + mistral-nemo:12b each caught 6. qwen3 also failed once by spending its whole output on thinking tokens
-  (empty reply), and its mean latency (43 s) was 2.7 times that of phi4 as Reviewer A (16 s).
-- **Limits:** 18 comparable cases; the panels differ by one case, which is within noise. The mixed-model panels escalated 8–10
-  of 18 cases to a human, because many model expectations could not be traced to a requirement. Five cases were not
-  run for every model within the 30-minute budget. All models are on one provider.
+- **Findings:** Raw verdicts were close to useless. On the 18 cases every model ran, phi4, qwen3 and mistral-nemo
+  approved all 9 defective patches by their own verdict, and gemma3 blocked 2. Executing the reviewers' proposed
+  checks caught 6 of 9 for phi4 alone, with 0 false blocks. The deterministic baseline caught 0 of 9.
+- **The evaluation found defects in our own pipeline.** Three of them biased the measurement: an expected
+  exception was compared as a string (false blocks); a mis-escaped backslash made a check test a different input
+  (false block); and a check whose `function` field copied the prompt's inventory format (for example `pkg/m.py: def f(...)`)
+  was rejected, or not counted as an inspection, although its call was valid. The last one turned most of gemma3's
+  and qwen3's reviews into non-inspections and escalated almost every correct change. The first real run (A1)
+  showed the same escalation. All three are fixed with regression tests, and the cached reviews were re-scored
+  after each fix with no new inference. `inference-run-1.json` keeps the scores from before the fixes.
+- **Selection** (order: false approvals, false blocks, catches, escalations, errors): Reviewer A `phi4:14b`,
+  Reviewer B `qwen3:14b`. On the comparable subset the phi4 + qwen3 panel had 1 false approval, 0 false blocks,
+  6 of 9 caught, 8 of 9 correct changes approved and 2 escalations. phi4 + gemma3 caught 7 but falsely blocked a
+  correct change. phi4 + mistral-nemo escalated 10 of 18. phi4 + phi4 had 2 false approvals and is not model
+  diversity. Costs of qwen3: a mean latency of 43 s (phi4: 16 s), and 1 empty reply in 19 calls after it spent its
+  output on thinking tokens (a recorded reviewer error, never an approval).
+- **Limits:** 18 comparable cases, all synthetic. The panels differ by one or two cases. **The three fixes were
+  developed on this same dataset, so the post-fix numbers are optimistic; there is no held-out set.** Lexical
+  grounding can confirm a wrong expectation when the requirement quotes the message but not the condition (gemma3
+  expected `template_path('secrets')` to raise). Five cases were not run for every model within the 30-minute
+  budget. All models are on one provider.
 - **Evidence:** `evaluation/results/REPORT.md`, `report.json`, `cache.jsonl`; `tests/test_reviewer_eval_dataset.py`,
   and the exception and escaping regressions in `tests/test_evidence_states.py`.

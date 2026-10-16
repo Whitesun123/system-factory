@@ -183,7 +183,8 @@ def revalidate(review: dict, bundle: dict) -> dict:
     checks = []
     for c in review["checks"]:
         probe, problem = reviewers.validate_check(c, inventory)
-        checks.append({**c, "probe": probe, "valid": probe is not None, "invalid_reason": problem})
+        checks.append({**c, "function": reviewers.check_function(c).split(".")[-1], "probe": probe,
+                       "valid": probe is not None, "invalid_reason": problem})
     return {**review, "checks": checks}
 
 
