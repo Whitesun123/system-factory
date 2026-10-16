@@ -149,4 +149,4 @@ bugs; they show reproducibility under fixed sampling, not an automation rate.
   workflows. No paths are shown (the worktree displays as `<data>/...`).
 - README rewritten (problem, loop, control plane vs roles, real vs simulated, sandbox, measured evaluation, real
   scenarios, case study, limitations, roadmap); DEMO, PRESENTATION and ARCHITECTURE updated; D21-D23 added.
-- **License: not added.** It waits for the owner's choice.
+- **License:** MIT, chosen by the owner after Milestone 6 (`LICENSE`).

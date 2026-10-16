@@ -302,3 +302,7 @@ examples/        sanitized evidence packages
 ```
 
 Status documents: [MILESTONE6_STATUS.md](MILESTONE6_STATUS.md) (current), [MILESTONE5_STATUS.md](MILESTONE5_STATUS.md).
+
+## License
+
+MIT. See [LICENSE](LICENSE).
