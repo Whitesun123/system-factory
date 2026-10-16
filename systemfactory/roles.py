@@ -522,6 +522,7 @@ def review_bundle(ctx: StepContext, it: dict) -> dict:
         "diff_u0": ctx.git.out(ctx.worktree, "diff", "-U0", f"{checkpoint}..HEAD", "--", *targets),
         "changed_files": changed,
         "files_after": {f: ctx.workspace([]).read_text(f) for f in changed if f in targets},
+        "files_before": base_contents(ctx, [f for f in changed if f in targets]),
         "tests": it["tests"], "fingerprint": it["fingerprint"], "patch": it["patch"],
         "previous_iterations": [
             {"n": p["n"], "decision": p["decision"], "reason": p["decision_reason"], "fingerprint": p["fingerprint"],
@@ -601,15 +602,28 @@ def review_panel(ctx: StepContext) -> dict:
 
 
 # ------------------------------------------------------------------ loop step 4: aggregation + decision
+def base_contents(ctx: StepContext, paths: list[str]) -> dict[str, str]:
+    """The given files as they were at the reproduction checkpoint (before any coding). New files are absent."""
+    commit = ctx.wf["data"]["reproduce"]["commit"]
+    out = {}
+    for path in paths:
+        try:
+            out[path] = ctx.git.out(ctx.worktree, "show", f"{commit}:{path}")
+        except Exception:  # noqa: BLE001  a file the patch created has no base version
+            continue
+    return out
+
+
 def authoritative_requirements(ctx: StepContext, files_after: dict[str, str]) -> list[str]:
-    """The texts a reviewer's expectation must be traceable to: issue, PRD, docstrings, README."""
+    """The texts a reviewer's expectation must be traceable to: issue, PRD, docstrings, README. Docstrings come from
+    the code BEFORE the patch: a coder that rewrites documentation to match its own behaviour cannot ground it."""
     wf = ctx.wf
     try:
         readme = ctx.workspace([]).read_text("README.md")
     except (FileNotFoundError, PermissionError, OSError):
         readme = None
-    return requirement_texts(wf["issue_title"], wf["issue_body"], wf["data"].get("requirements", {}), files_after,
-                             readme)
+    return requirement_texts(wf["issue_title"], wf["issue_body"], wf["data"].get("requirements", {}),
+                             base_contents(ctx, sorted(files_after)), readme)
 
 
 def requirement_texts(title: str, body: str, prd: dict, files_after: dict[str, str], readme: str | None) -> list[str]:
@@ -638,7 +652,7 @@ def feedback(ctx: StepContext) -> dict:
     changed_functions = {f["function"] for f in reviewers_mod.function_inventory(files_after)}
     agg = loop.aggregate(reviews, it["tests"], lambda src: run_probe(ctx, src, tag=f"confirm-{n}"),
                          requirements=authoritative_requirements(ctx, files_after),
-                         changed_functions=changed_functions or None)
+                         changed_functions=changed_functions or None, changed_files=set(files_after))
     history = _previous_iterations(ctx, n)
     first = (history[0] if history else it)["started_at"]
     decision, reason = loop.assess_progress(

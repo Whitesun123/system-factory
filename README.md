@@ -207,8 +207,10 @@ clean. Packages: [examples/evidence/](examples/evidence/).
 The suite is deterministic: no Ollama, GPU or network. Provider failures are tested against a closed local port.
 GitHub Actions runs on **Windows and Ubuntu**: ruff, mypy, the full suite under coverage with a minimum of 85% on the
 control-plane modules (95% measured locally), and, on Linux, the Docker sandbox tests against the real image.
-Real-model evaluation runs only from a separate, manually dispatched workflow on a trusted self-hosted runner.
-Pull-request code never reaches that runner, and the workflow uses no secrets.
+Real-model evaluation runs only from a separate, manually dispatched workflow for a self-hosted GPU runner. It uses
+no secrets. No such runner is registered; because the repository is public, one must only be added in a runner
+group restricted to that workflow on `main`, with approval required for outside contributors (the workflow file
+alone cannot keep pull-request code off a self-hosted runner).
 
 Developer loop: `pip install -r requirements.txt -r requirements-dev.txt -c constraints.txt`, then
 `python -m ruff check .`, `python -m mypy systemfactory evaluation`, `.\scripts\test.ps1`.

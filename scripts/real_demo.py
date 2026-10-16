@@ -96,7 +96,8 @@ def main() -> int:
                "tokens_out": sum(c["output_tokens"] or 0 for c in calls),
                "models": sorted({c["model"] for c in calls}),
                "backends": sorted({t["backend"] for t in orch.store.get_test_runs(wf_id)})}
-        rec["evidence"] = str(export(orch, wf_id, out_root / f"{label}-wf{wf_id}"))
+        export(orch, wf_id, out_root / f"{label}-wf{wf_id}")
+        rec["evidence"] = f"{label}-wf{wf_id}"  # relative to the output directory: no local paths in results
         results.append(rec)
         print(json.dumps(rec), flush=True)
         return rec
@@ -145,7 +146,7 @@ def main() -> int:
         for r in results:  # re-export so the packages show the final (approved / refused) state
             if "workflow" in r and "evidence" in r:
                 r["final_state"] = orch.store.workflow(r["workflow"])["state"]
-                export(orch, r["workflow"], Path(r["evidence"]))
+                export(orch, r["workflow"], out_root / r["evidence"])
     out_root.mkdir(parents=True, exist_ok=True)
     (out_root / "scenario-results.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
     return 0

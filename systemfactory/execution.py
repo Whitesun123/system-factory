@@ -108,8 +108,9 @@ class DockerExecutionBackend:
         def translate(a: str) -> str:
             for host, inner in mounts.items():
                 for form in (str(host), host.as_posix()):
-                    if a.startswith(form):
-                        return inner + a[len(form):].replace("\\", "/")
+                    rest = a[len(form):]
+                    if a.startswith(form) and (not rest or rest[0] in "/\\"):  # whole path components only
+                        return inner + rest.replace("\\", "/")
             return a
 
         cmd = [self.docker, "run", "--rm", "--name", name,
@@ -133,8 +134,12 @@ class DockerExecutionBackend:
             res = run_command(cmd, workdir, timeout=timeout + self.startup_slack, env=self._cli_env(),
                               should_stop=should_stop)
         finally:
-            # Killing the CLI does not stop the container; always force-remove it by name.
-            subprocess.run([self.docker, "rm", "-f", name], capture_output=True, timeout=30, env=self._cli_env())
+            # Killing the CLI does not stop the container; always force-remove it by name. A slow removal must not
+            # replace the command's own result (or exception) with a TimeoutExpired.
+            try:
+                subprocess.run([self.docker, "rm", "-f", name], capture_output=True, timeout=30, env=self._cli_env())
+            except (OSError, subprocess.TimeoutExpired):
+                pass
         if res.exit_code == 137 and not res.timed_out:
             res.output += "\n[container killed: exit 137 (out of memory or SIGKILL)]"
         return res

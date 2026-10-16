@@ -15,8 +15,9 @@
 > **How we know a fix is real.** The QA role turns the issue's example into a test and proves it **fails** on the
 > current code. A patch counts only when that test passes, the whole suite passes, and at least two independent
 > reviewers have no *verified* blocking finding. Reviewer claims are not trusted as text: reviewers propose
-> executable checks, and System Factory runs them in the sandbox. A failing check becomes blocking feedback for
-> the next revision; a claim that cannot be demonstrated is downgraded.
+> executable checks, and System Factory runs them in a Docker sandbox. A failing check is a confirmed defect only
+> if its expected value traces to the issue, acceptance criteria or docs; it then becomes feedback for the next
+> revision. Untraceable or conflicting evidence escalates to a human instead of blocking or approving.
 >
 > **How it stops.** Either there are no verified blocking findings and the quality gate re-verifies every
 > acceptance criterion, or the loop detects it is stuck (same patch, same failures, no progress) or hits a budget
@@ -102,16 +103,24 @@ in the quality gate. The reproduction test is committed before coding starts. Ap
 SUCCESS.
 
 **"Is it safe to run on untrusted repositories?"**
-No. Isolation is process-level: scrubbed environment, worktree-confined writes, timeouts, process-tree kill, and
-static vetting of model-written probes. It does not stop malicious code in the target repository from reading files
-or using the network. A container sandbox is the next step; until then, run trusted repositories only.
+Safer, not safe. In the real runtime every test, probe and check runs in a fresh container: no network, a read-only
+root, read-only mounts, all capabilities dropped, a non-root user, and PID, memory and CPU limits. If Docker is
+unavailable the workflow is blocked before anything runs. Limits: containers share the host kernel, git runs on the
+host, and dependency installation from the target repository is not supported. The deterministic runtime still uses
+host processes, for trusted code and CI only (D21).
 
 **"The API has no authentication?"**
 Correct, it is a single-user local tool. It binds to 127.0.0.1, refuses non-local Host headers (DNS rebinding) and
 refuses cross-origin state-changing requests (CSRF).
 
 **"What's the automation rate?"**
-Not claimed. A real rate needs a real issue set and repeated real runs.
+Not claimed. A real rate needs an external issue set and repeated real runs.
+
+**"How did you choose the reviewer models?"**
+From a labelled evaluation of 23 cases (D23, `evaluation/results/REPORT.md`). Raw model verdicts caught almost
+nothing; executing the models' checks did. The evaluation also found three defects in our own evidence pipeline,
+which we fixed and then re-scored without new inference. Because the fixes came from the same dataset, the final
+numbers are optimistic, and we say so.
 
 **"Why SQLite and not Postgres?"**
 Postgres wasn't needed yet, and the store is one class. SQLite in WAL mode with atomic claims is tested under

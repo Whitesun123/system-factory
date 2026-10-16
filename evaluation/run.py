@@ -49,11 +49,13 @@ def load_cache(path: Path) -> dict:
     return cache
 
 
-def prior_inference_seconds(cache: dict, configs: list[tuple[str, str, str | None]], case_ids: list[str]) -> float:
-    """Inference time already spent (and cached) on these (role, model, digest) configurations and cases."""
+def prior_inference_seconds(cache: dict, configs: list[tuple[str, str, str | None]]) -> float:
+    """Inference time already spent (and cached) on these (role, model, digest) configurations, on ANY case: running
+    a different subset of cases never buys a fresh budget. A single review can still overrun the limit by one call,
+    because the budget is checked before each call."""
     wanted = set(configs)
     return sum(rec["review"].get("seconds", 0) for rec in cache.values()
-               if (rec["role"], rec["model"], rec["digest"]) in wanted and rec["case"] in case_ids)
+               if (rec["role"], rec["model"], rec["digest"]) in wanted)
 
 
 def main() -> int:
@@ -61,7 +63,8 @@ def main() -> int:
     ap.add_argument("--configs", required=True, help="comma-separated role=model, role in ollama-a/ollama-b")
     ap.add_argument("--budget-minutes", type=float, default=30.0, help="cumulative NEW inference wall time")
     ap.add_argument("--cases", help="comma-separated case ids (default: all)")
-    ap.add_argument("--execution", default="local", choices=["local", "docker"], help="where probes/tests run")
+    ap.add_argument("--execution", default="docker", choices=["local", "docker"],
+                    help="where probes/tests run; model-written checks are untrusted code, so docker is the default")
     args = ap.parse_args()
     configs = [tuple(c.split("=", 1)) for c in args.configs.split(",")]
     case_ids = args.cases.split(",") if args.cases else CASE_IDS
@@ -80,7 +83,7 @@ def main() -> int:
         return 2
     # The budget is cumulative: inference already recorded in the cache for these configurations counts, so a
     # re-run (e.g. to re-score with new pipeline code) never silently buys more inference.
-    prior = prior_inference_seconds(cache, [(r, m, digests[m]) for r, m in configs], case_ids)
+    prior = prior_inference_seconds(cache, [(r, m, digests[m]) for r, m in configs])
     budget_s, spent, peak_vram = args.budget_minutes * 60, prior, vram_mib() or 0
     settings = Settings(data_dir=Path(tempfile.mkdtemp(prefix="sf-eval-")))
     settings.ensure_dirs()
@@ -92,6 +95,7 @@ def main() -> int:
             m = harness.Materialised(case, Path(td), settings.empty_gitconfig, args.execution)
             m.apply_patch()
             bundle = m.bundle()
+            before = {case["path"]: case["before"]}  # grounding uses the pre-patch documentation
             per = {"case": cid, "category": case["category"], "expected_blocking": case["expected_blocking"],
                    "reviews": {}}
             for name in ("simulated-spec", "simulated-diff"):  # deterministic baseline, no inference
@@ -121,16 +125,16 @@ def main() -> int:
             # decisions: each reviewer alone, deterministic panel, and every A x B model panel
             per["decisions"] = {}
             for label, rev in per["reviews"].items():
-                per["decisions"][label] = harness.decide([rev], bundle, m.run_probe, needed=1)
+                per["decisions"][label] = harness.decide([rev], bundle, m.run_probe, needed=1, files_before=before)
             per["decisions"]["panel:simulated-spec+simulated-diff"] = harness.decide(
-                [per["reviews"]["simulated-spec"], per["reviews"]["simulated-diff"]], bundle, m.run_probe, needed=2)
+                [per["reviews"]["simulated-spec"], per["reviews"]["simulated-diff"]], bundle, m.run_probe, needed=2, files_before=before)
             a_cfgs = [f"{r}={mm}" for r, mm in configs if r == "ollama-a"]
             b_cfgs = [f"{r}={mm}" for r, mm in configs if r == "ollama-b"]
             for a in a_cfgs:
                 for b in b_cfgs:
                     if a in per["reviews"] and b in per["reviews"]:
                         per["decisions"][f"panel:{a}+{b}"] = harness.decide(
-                            [per["reviews"][a], per["reviews"][b]], bundle, m.run_probe, needed=2)
+                            [per["reviews"][a], per["reviews"][b]], bundle, m.run_probe, needed=2, files_before=before)
             rows.append(per)
 
     summary = {}

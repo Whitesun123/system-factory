@@ -1,7 +1,10 @@
 name: real-model evaluation (manual, trusted runner only)
-# Runs real local inference. Deliberately NOT triggered by push or pull_request: pull-request code never reaches
-# the GPU host, its Docker daemon or its models. Requires a self-hosted runner labelled `gpu-ollama` with Ollama,
-# the models and the sandbox image already installed. Uses no secrets.
+# Runs real local inference. Deliberately NOT triggered by push or pull_request, and it uses no secrets.
+# This file alone cannot keep pull-request code off a self-hosted runner: any workflow that names the runner's labels
+# can target it. This repository is public, so do NOT register a `gpu-ollama` runner on it unless (a) the runner is in
+# a runner group restricted to this workflow on refs/heads/main, (b) workflows from outside contributors require
+# approval, and preferably (c) the runner is ephemeral. No such runner is registered today.
+# Requires Ollama, the models and the sandbox image already installed on the runner.
 on:
   workflow_dispatch:
     inputs:
@@ -25,6 +28,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - run: python -m pip install -r requirements.txt -c constraints.txt
       - run: python scripts/check_models.py
       # inputs reach the shell only as environment variables, never interpolated into the script

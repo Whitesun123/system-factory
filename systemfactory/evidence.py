@@ -150,7 +150,7 @@ def collect(orch, wf_id: int) -> dict[str, object]:
             "version": __version__,
             "run": data.get("provenance") or {"source_revision": None, "note": "workflow predates provenance recording"},
             "export": {"source_revision": _git(PROJECT_ROOT, "rev-parse", "HEAD"),
-                       "source_dirty": bool(_git(PROJECT_ROOT, "status", "--porcelain", "--untracked-files=no"))},
+                       "source_dirty": bool(_git(PROJECT_ROOT, "status", "--porcelain", "--untracked-files=normal"))},
         },
         "target_repository": {
             "note": "SHAs of the generated demo repository under <DATA_DIR>/repos; run-local identifiers, "

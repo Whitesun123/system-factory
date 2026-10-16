@@ -22,7 +22,7 @@ if str(ROOT) not in sys.path:
 
 from evaluation.dataset import build_case  # noqa: E402
 from systemfactory import loop, reviewers  # noqa: E402
-from systemfactory.execution import LocalExecutionBackend, make_backend  # noqa: E402
+from systemfactory.execution import resolve_backend  # noqa: E402
 from systemfactory.roles import BUG_ACCEPTANCE_CRITERIA, REPRO_TEMPLATE, extract_example, prose, requirement_texts, \
     scan_diff_text  # noqa: E402
 from systemfactory.sandbox import Git, scrubbed_env  # noqa: E402
@@ -55,7 +55,9 @@ class Materialised:
         self.repo.mkdir(parents=True)
         self.probes.mkdir()
         self.git = Git(gitconfig)
-        self.backend = LocalExecutionBackend() if backend_name == "local" else make_backend(backend_name)
+        # Fail closed: a missing Docker daemon or image must stop the evaluation, not show up as failing tests
+        # (which the metrics would count as caught defects and false blocks).
+        self.backend = resolve_backend(backend_name, require_isolation=backend_name == "docker")
         r = self.repo
         (r / "shopkit").mkdir()
         (r / "tests").mkdir()
@@ -121,7 +123,7 @@ class Materialised:
                  "security": scan_diff_text([path], diff, [path])}
         tests["all_passed"] = repro.ok and suite.ok and tests["security"]["passed"]
         issue = self.case["issue"]
-        return {"iteration": 1, "issue": dict(issue),
+        return {"iteration": 1, "issue": dict(issue), "files_before": {self.case["path"]: self.case["before"]},
                 "prd": {"title": issue["title"], "type": "bug", "problem": prose(issue["body"]),
                         "acceptance_criteria": list(BUG_ACCEPTANCE_CRITERIA)},
                 "plan": {"target_files": [path], "steps": []}, "diff": diff,
@@ -175,30 +177,35 @@ def run_reviewer(name: str, model: str | None, bundle: dict, tools) -> dict:
 
 
 def revalidate(review: dict, bundle: dict) -> dict:
-    """Re-derive each check's probe from the model's raw fields (function, call, expected) with the CURRENT
-    validation code. Cached reviews keep the model output; deterministic post-processing is never cached."""
+    """Re-derive each check's probe from its recorded fields (function, call, expected) with the CURRENT validation
+    code. Reviews recorded before `function_raw` existed keep only the bare function name (module qualification is
+    lost; each evaluation case has one changed file, so the name is unambiguous)."""
     if review.get("reviewer") in reviewers.TRUSTED_REVIEWERS or not review.get("checks"):
         return review
     inventory = reviewers.function_inventory(bundle["files_after"])
     checks = []
     for c in review["checks"]:
-        probe, problem = reviewers.validate_check(c, inventory)
-        checks.append({**c, "function": reviewers.check_function(c).split(".")[-1], "probe": probe,
+        raw = {**c, "function": c.get("function_raw") or c.get("function")}
+        probe, problem = reviewers.validate_check(raw, inventory)
+        checks.append({**c, "function": reviewers.check_function(raw).split(".")[-1], "probe": probe,
                        "valid": probe is not None, "invalid_reason": problem})
     return {**review, "checks": checks}
 
 
-def decide(reviews: list[dict], bundle: dict, run_probe, needed: int) -> dict:
+def decide(reviews: list[dict], bundle: dict, run_probe, needed: int,
+           files_before: dict[str, str] | None = None) -> dict:
     """Raw verdict vs pipeline decision for a set of reviews of one patch."""
     reviews = [revalidate(r, bundle) for r in reviews]
     ok = [r for r in reviews if r.get("verdict") != "error"]
+    if len(ok) < needed:  # a reviewer error is neither an approval nor a block, in either decision mode
+        return {"raw": "error", "pipeline": "error", "reason": "reviewer error"}
     raw = "block" if any(r["verdict"] == "request_changes" for r in ok) else "approve"
-    if len(ok) < needed:
-        return {"raw": raw, "pipeline": "error", "reason": "reviewer error"}
     issue = bundle["issue"]
-    req = requirement_texts(issue["title"], issue["body"], bundle["prd"], bundle["files_after"], None)
+    # documentation as it was before the patch (the same rule as the product: roles.authoritative_requirements)
+    req = requirement_texts(issue["title"], issue["body"], bundle["prd"], files_before or {}, None)
     changed = {f["function"] for f in reviewers.function_inventory(bundle["files_after"])}
-    agg = loop.aggregate(ok, bundle["tests"], run_probe, requirements=req, changed_functions=changed or None)
+    agg = loop.aggregate(ok, bundle["tests"], run_probe, requirements=req, changed_functions=changed or None,
+                         changed_files=set(bundle["files_after"]))
     if agg["blocking_count"]:
         pipe = "block"
     elif agg["unresolved_count"] or len(agg["inspected_reviews"]) < needed:

@@ -74,7 +74,7 @@ command or CI run), and what remains open. Nothing here is a plan presented as a
 - Run: 30.4 minutes of real inference (budget 30), Ollama 0.30.8, one provider. 22 (case, model) pairs were **not
   executed**; they are listed in `evaluation/results/REPORT.md`.
 - **Measured (comparable 18 cases, after the fixes below):** raw verdicts of phi4, qwen3 and mistral-nemo caught 0 of
-  9 defects; gemma3 caught 2. The evidence pipeline caught 6 of 9 for phi4 alone (0 false blocks). The selected phi4 +
+  9 defects (qwen3 failed on 1); gemma3 caught 2. The evidence pipeline caught 6 of 9 for phi4 alone (0 false blocks). The selected phi4 +
   qwen3 panel caught 6 of 9 with 1 false approval, 0 false blocks, 8 of 9 correct changes approved and 2 escalations.
   The deterministic baseline caught 0 of 9.
 - **Pipeline defects found by the evaluation and fixed** (regression tests in `tests/test_evidence_states.py`):
@@ -100,4 +100,23 @@ command or CI run), and what remains open. Nothing here is a plan presented as a
   context 92%, execution 90%, sandbox 90%). The whole package is at 87%. CI fails below 85% on the control plane.
 - `constraints.txt` (generated from a clean virtual environment) and `requirements-dev.txt` pin the versions.
 - `real-model-eval.yml` runs only via manual dispatch on `main`, on a self-hosted `gpu-ollama` runner. It uses no
-  secrets, and its inputs reach the shell only as environment variables. Pull-request code never reaches that host.
+  secrets, and its inputs reach the shell only as environment variables. The file alone cannot keep pull-request
+  code off a self-hosted runner, so no runner is registered; the conditions for adding one are in the workflow.
+
+## M6.7: Independent review (fresh context; same model family, not model diversity)
+
+Findings and fixes (regression tests in `tests/test_review_findings.py`):
+
+| # | Finding | Severity | Fix |
+|---|---|---|---|
+| R1 | A check killed by a timeout or OOM was `invalid`, and its review still counted as an inspection | high (false approval) | `timeout` outcome is a failure; only checks that produced a result count as an inspection |
+| R2 | TypeError/NameError raised *inside the patched code* was classified as a broken probe | medium-high (false approval) | probe-error only if the innermost frame is the doctest itself |
+| R3 | A "located" finding in a nonexistent or unchanged file counted as an inspection | medium | must name a changed file or a function of the changed files |
+| R4 | `from <changed module> import os` passed the free-form probe vetting; `str.format` reached internals | medium (defence in depth) | only names the module defines may be imported; `format`/`format_map` forbidden; evaluation defaults to Docker |
+| R5 | The evaluation harness ran without Docker, turning infrastructure failures into "caught defects" | medium (honesty) | `resolve_backend(..., require_isolation=True)`: fails closed |
+| R6 | The raw baseline counted reviewer errors as approvals | medium (metrics) | `raw: "error"` |
+| R7 | Grounding, and the deterministic spec reviewer, used docstrings from the *patched* files | low-medium | documentation from the reproduction checkpoint |
+| R8 | Small: file attribution of qualified checks, path-prefix translation without a separator boundary, a `docker rm` timeout masking the result, provenance ignoring untracked files, the budget reset by a case subset, the self-hosted-runner claim | low | each fixed; the runner claim was corrected (no runner is registered; conditions documented) |
+
+The review confirmed as sound: the Docker flags and fail-closed backend, no bypass of `run_python`, no label leakage,
+no silent simulation in the real runtime, the gate checks, and dashboard escaping.

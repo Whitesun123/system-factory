@@ -319,8 +319,8 @@ Test names refer to files in `tests/`.
   twice, once by the raw verdict and once by the full pipeline decision (checks executed in the Docker sandbox,
   evidence classified). Every model call is checkpointed in a cache keyed by case, role, model, digest and prompt.
   The inference budget is cumulative across runs, and pairs that were not run are listed, not extrapolated.
-- **Findings:** Raw verdicts were close to useless. On the 18 cases every model ran, phi4, qwen3 and mistral-nemo
-  approved all 9 defective patches by their own verdict, and gemma3 blocked 2. Executing the reviewers' proposed
+- **Findings:** Raw verdicts were close to useless. On the 18 cases every model ran, phi4 and mistral-nemo approved
+  all 9 defective patches by their own verdict, qwen3 approved 8 and failed on 1, and gemma3 blocked 2. Executing the reviewers' proposed
   checks caught 6 of 9 for phi4 alone, with 0 false blocks. The deterministic baseline caught 0 of 9.
 - **The evaluation found defects in our own pipeline.** Three of them biased the measurement: an expected
   exception was compared as a string (false blocks); a mis-escaped backslash made a check test a different input
@@ -335,6 +335,12 @@ Test names refer to files in `tests/`.
   correct change. phi4 + mistral-nemo escalated 10 of 18. phi4 + phi4 had 2 false approvals and is not model
   diversity. Costs of qwen3: a mean latency of 43 s (phi4: 16 s), and 1 empty reply in 19 calls after it spent its
   output on thinking tokens (a recorded reviewer error, never an approval).
+- **Independent review (Phase 9).** A fresh-context review (same model family, so a second pair of eyes, not model
+  diversity) found two more false-approval paths: a check killed by a timeout or OOM was classified `invalid`, and
+  a TypeError/NameError raised inside the patched code was classified as a broken probe. It also found that a
+  located finding in an unchanged file counted as an inspection, and that grounding used the patched docstrings.
+  All are fixed with regression tests (`tests/test_review_findings.py`). Re-scoring left the selected panel's numbers
+  unchanged.
 - **Limits:** 18 comparable cases, all synthetic. The panels differ by one or two cases. **The three fixes were
   developed on this same dataset, so the post-fix numbers are optimistic; there is no held-out set.** Lexical
   grounding can confirm a wrong expectation when the requirement quotes the message but not the condition (gemma3

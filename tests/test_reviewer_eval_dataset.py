@@ -87,8 +87,9 @@ def test_inference_budget_is_cumulative_across_runs():
     cache = {"k1": {"role": "ollama-a", "model": "m1", "digest": "d1", "case": "c1", "review": {"seconds": 1000}},
              "k2": {"role": "ollama-a", "model": "m1", "digest": "OLD", "case": "c1", "review": {"seconds": 50}},
              "k3": {"role": "ollama-b", "model": "m2", "digest": "d2", "case": "c2", "review": {"seconds": 900}}}
-    assert prior_inference_seconds(cache, [("ollama-a", "m1", "d1"), ("ollama-b", "m2", "d2")], ["c1", "c2"]) == 1900
-    assert prior_inference_seconds(cache, [("ollama-a", "m1", "d1")], ["c2"]) == 0  # other cases do not count
+    assert prior_inference_seconds(cache, [("ollama-a", "m1", "d1"), ("ollama-b", "m2", "d2")]) == 1900
+    # a different case subset does not reset the budget; another model digest is another configuration
+    assert prior_inference_seconds(cache, [("ollama-a", "m1", "d1")]) == 1000
 
 
 def test_cached_reviews_are_rescored_with_current_check_validation():

@@ -34,7 +34,7 @@ def source_provenance() -> dict:
             return r.stdout.strip() if r.returncode == 0 else None
         except (OSError, subprocess.TimeoutExpired):
             return None
-    status = git("status", "--porcelain", "--untracked-files=no")
+    status = git("status", "--porcelain", "--untracked-files=normal")
     return {"system_factory_version": __version__, "source_revision": git("rev-parse", "HEAD"),
             "source_dirty": bool(status) if status is not None else None,
             "source_modified_files": status.splitlines()[:50] if status else [],

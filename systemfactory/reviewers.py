@@ -94,14 +94,19 @@ class SpecConformanceReviewer:
     def review(self, bundle: dict, tools: Tools) -> dict:
         findings = _test_evidence_findings(bundle["tests"])
         checked = 0
+        before = bundle.get("files_before")
         for file, lines in _changed_new_lines(bundle).items():
             src = bundle["files_after"].get(file)
             if src is None:
                 continue
+            # The specification is the documentation BEFORE the patch: a patch that rewrites a docstring to match
+            # its own behaviour must not be able to change what it is checked against.
+            base_docs = None if before is None else {n: ast.get_docstring(nd) or ""
+                                                       for n, _, _, nd in _functions(before.get(file) or "")}
             for name, start, end, node in _functions(src):
                 if not any(start <= ln <= end for ln in lines):
                     continue
-                doc = ast.get_docstring(node) or ""
+                doc = (ast.get_docstring(node) or "") if base_docs is None else base_docs.get(name, "")
                 for ex in doctest.DocTestParser().get_examples(doc):
                     if not ex.want.strip() or "\n" in ex.source.strip():
                         continue
@@ -477,7 +482,23 @@ FORBIDDEN_NODES = (ast.Import, ast.Lambda, ast.FunctionDef, ast.AsyncFunctionDef
                    ast.Raise, ast.Await, ast.Yield, ast.YieldFrom)
 
 
-def probe_is_safe(probe: str, allowed_modules: set[str]) -> bool:
+def module_definitions(files_after: dict[str, str]) -> dict[str, set[str]]:
+    """Top-level functions and classes each changed module defines (not names it merely imports)."""
+    out: dict[str, set[str]] = {}
+    for path, src in files_after.items():
+        try:
+            tree = ast.parse(src)
+        except SyntaxError:
+            tree = ast.Module(body=[], type_ignores=[])
+        out[_module(path)] = {n.name for n in tree.body
+                              if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))}
+    return out
+
+
+FORBIDDEN_ATTRS = {"format", "format_map"}  # '{0.__globals__}'.format(f) reaches internals without a dunder name
+
+
+def probe_is_safe(probe: str, allowed_modules: set[str] | dict[str, set[str]]) -> bool:
     """Static vetting of a free-form doctest probe written by a model (or influenced by repository content).
 
     Allowed: `from <changed module> import ...`, assignments, calls and attribute access on ordinary names,
@@ -502,16 +523,19 @@ def probe_is_safe(probe: str, allowed_modules: set[str]) -> bool:
             if isinstance(node, ast.ImportFrom) and (node.level or node.module not in allowed_modules
                                                      or any(a.name == "*" or a.name.startswith("_") for a in node.names)):
                 return False
+            if isinstance(node, ast.ImportFrom) and isinstance(allowed_modules, dict) and any(
+                    a.name not in allowed_modules[node.module or ""] for a in node.names):
+                return False  # e.g. `from changed_module import os`: only what the module defines
             if isinstance(node, ast.Name) and (node.id in FORBIDDEN_NAMES or node.id.startswith("_")):
                 return False
-            if isinstance(node, ast.Attribute) and node.attr.startswith("_"):
+            if isinstance(node, ast.Attribute) and (node.attr.startswith("_") or node.attr in FORBIDDEN_ATTRS):
                 return False
     return True
 
 
 def vet_findings(findings: list[dict], files_after: dict[str, str]) -> list[dict]:
     """Drop unsafe probes from an untrusted reviewer's findings (the finding then counts as unverified)."""
-    allowed = {_module(f) for f in files_after}
+    allowed = module_definitions(files_after)
     out = []
     for f in findings:
         p = f.get("probe")
@@ -599,11 +623,14 @@ class OllamaReviewer:
         checks = []
         for c in data.get("checks", []):
             probe, problem = validate_check(c, inventory)
-            name = check_function(c).split(".")[-1]
-            checks.append({"function": name, "call": c.get("call"), "expected": c.get("expected"),
-                           "rule": (c.get("rule") or "")[:300], "probe": probe, "valid": probe is not None,
-                           "invalid_reason": problem,
-                           "file": next((f["file"] for f in inventory if f["function"] == name), None)})
+            qualified = check_function(c)
+            name = qualified.split(".")[-1]
+            module = (re.match(r">>> from ([\w.]+) import ", probe or "") or [None, None])[1]
+            checks.append({"function": name, "function_raw": (c.get("function") or "")[:200], "call": c.get("call"),
+                           "expected": c.get("expected"), "rule": (c.get("rule") or "")[:300], "probe": probe,
+                           "valid": probe is not None, "invalid_reason": problem,
+                           "file": next((f["file"] for f in inventory if f["function"] == name
+                                         and (module is None or f["module"] == module)), None)})
         return {"verdict": data["verdict"], "summary": data.get("summary", ""), "findings": findings,
                 "checks": checks, "analysis": data.get("analysis", "")[:4000],
                 "input_tokens": res.input_tokens, "output_tokens": res.output_tokens, "cost_usd": 0.0,

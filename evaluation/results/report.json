@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-16T02:50:36+0200",
+  "generated_at": "2026-10-16T03:12:14+0200",
   "dataset_cases": 23,
   "executed_cases": 23,
   "not_executed": [
@@ -111,11 +111,11 @@
   },
   "ollama_version": "0.30.8",
   "platform": "Windows-11-10.0.26200-SP0",
-  "gpu_peak_vram_mib": 906,
+  "gpu_peak_vram_mib": 11833,
   "inference_minutes": 30.41,
   "new_inference_minutes_this_run": 0.0,
   "budget_minutes": 30.0,
-  "wall_minutes": 3.89,
+  "wall_minutes": 4.01,
   "execution_backend": "docker",
   "summary": {
     "ollama-a=phi4:14b": {
@@ -274,14 +274,14 @@
       "raw": {
         "cases": 19,
         "true_positives": 0,
-        "false_approvals": 9,
+        "false_approvals": 8,
         "false_blocks": 0,
         "true_negatives": 10,
         "escalations": 0,
-        "errors": 0,
+        "errors": 1,
         "precision": null,
         "recall": 0.0,
-        "false_approval_rate": 1.0,
+        "false_approval_rate": 0.889,
         "false_block_rate": 0.0
       },
       "pipeline": {
@@ -396,14 +396,14 @@
       "raw": {
         "cases": 19,
         "true_positives": 0,
-        "false_approvals": 9,
+        "false_approvals": 8,
         "false_blocks": 0,
         "true_negatives": 10,
         "escalations": 0,
-        "errors": 0,
+        "errors": 1,
         "precision": null,
         "recall": 0.0,
-        "false_approval_rate": 1.0,
+        "false_approval_rate": 0.889,
         "false_block_rate": 0.0
       },
       "pipeline": {
@@ -514,7 +514,7 @@
         "false_block_rate": 0.0
       },
       "latency_s": {
-        "mean": 0.13,
+        "mean": 0.14,
         "p95": 0.0
       },
       "tokens": {
@@ -542,7 +542,7 @@
           "input_tokens": 0,
           "output_tokens": 0,
           "model_digest": null,
-          "seconds": 0.76,
+          "seconds": 0.82,
           "llm_calls": []
         },
         "simulated-diff": {
@@ -1241,7 +1241,7 @@
           "input_tokens": 0,
           "output_tokens": 0,
           "model_digest": null,
-          "seconds": 2.31,
+          "seconds": 2.33,
           "llm_calls": []
         },
         "simulated-diff": {
@@ -2375,7 +2375,7 @@
           }
         },
         "ollama-b=qwen3:14b": {
-          "raw": "approve",
+          "raw": "error",
           "pipeline": "error",
           "reason": "reviewer error"
         },
@@ -2444,7 +2444,7 @@
           }
         },
         "panel:ollama-a=phi4:14b+ollama-b=qwen3:14b": {
-          "raw": "approve",
+          "raw": "error",
           "pipeline": "error",
           "reason": "reviewer error"
         },

@@ -35,6 +35,15 @@ PROBE_RUNNER = (
 
 PROBE_SETUP_ERRORS = ("NameError", "ImportError", "ModuleNotFoundError", "SyntaxError", "IndentationError",
                       "AttributeError", "TypeError")
+# Markers the execution backends append when a command was killed (timeout, OOM, SIGKILL).
+KILLED_MARKERS = ("[killed after", "[container killed")
+
+
+def _raised_by_probe(traceback_text: str) -> bool:
+    """True if the innermost frame is the doctest itself, i.e. the probe is broken (bad name, signature, import).
+    An error raised inside the code under test (its innermost frame is a source file) is a real exception."""
+    frames = [f for f in re.findall(r'File "([^"]+)"', traceback_text) if not f.startswith("<frozen")]
+    return not frames or frames[-1].startswith("<doctest")
 
 
 def raised_exception(output: str) -> tuple[str, str] | None:
@@ -45,19 +54,23 @@ def raised_exception(output: str) -> tuple[str, str] | None:
 
 def classify_probe(ok: bool, output: str) -> str:
     """pass | mismatch (wrong result: the defect is real) | exception (code raised at runtime) |
-    probe-error (the probe itself is broken: bad import/name/signature) | invalid (no runnable example)."""
+    timeout (killed: hang, memory or process limit) | probe-error (the probe itself is broken: bad
+    import/name/signature) | invalid (no runnable example)."""
     if ok:
         return "pass"  # includes a probe with no runnable examples: it proves nothing either way
+    if any(marker in output for marker in KILLED_MARKERS):
+        return "timeout"  # the code under test did not finish within the limits: a failure, never "invalid"
     if "Expected:" in output and "Got:" in output and "Exception raised" not in output:
         got = output.split("Got:", 1)[1]
         if "Traceback (most recent call last)" in got:  # an exception was expected, a different one was raised
             name = (raised_exception(got) or ("", ""))[0]
-            if name.split(".")[-1] in PROBE_SETUP_ERRORS:
+            if name.split(".")[-1] in PROBE_SETUP_ERRORS and _raised_by_probe(got):
                 return "probe-error"
         return "mismatch"
     m = re.search(r"Exception raised:[\s\S]*?\n\s*(\w+(?:\.\w+)*):", output)
     if m:
-        return "probe-error" if m.group(1).split(".")[-1] in PROBE_SETUP_ERRORS else "exception"
+        setup = m.group(1).split(".")[-1] in PROBE_SETUP_ERRORS
+        return "probe-error" if setup and _raised_by_probe(output.split("Exception raised:", 1)[1]) else "exception"
     if "Traceback" in output or "Error" in output:
         return "probe-error"
     return "invalid"
@@ -180,6 +193,18 @@ def ground(claim: str, expected: str | None, sentences: list[str] | None) -> str
     return best if score >= 0.5 else None
 
 
+FAILURE_OUTCOMES = ("mismatch", "exception", "timeout")
+
+
+def _located_in_change(f: dict, changed_files: set[str] | None, changed_functions: set[str] | None) -> bool:
+    """A finding locates the change only if it names a changed file or a function of the changed files."""
+    if changed_files is None and changed_functions is None:
+        return bool(f.get("file") or f.get("function"))  # legacy callers without change information
+    file_ok = bool(f.get("file")) and changed_files is not None and f["file"].replace("\\", "/") in changed_files
+    fn_ok = bool(f.get("function")) and changed_functions is not None and f["function"] in changed_functions
+    return file_ok or fn_ok
+
+
 def _expects_the_raised_message(expected: str | None, output: str) -> bool:
     raised = raised_exception(output.split("Exception raised:", 1)[-1])
     if not raised or not expected:
@@ -202,7 +227,8 @@ def _probe_key(probe: str) -> tuple[str, str] | None:
 
 
 def aggregate(reviews: list[dict], tests: dict, confirm_probe: Callable[[str], tuple[bool, str]],
-              requirements: list[str] | None = None, changed_functions: set[str] | None = None) -> dict:
+              requirements: list[str] | None = None, changed_functions: set[str] | None = None,
+              changed_files: set[str] | None = None) -> dict:
     """Merge reviewer + test findings into evidence-classified, actionable feedback items.
 
     Evidence states for reviewer claims:
@@ -237,9 +263,10 @@ def aggregate(reviews: list[dict], tests: dict, confirm_probe: Callable[[str], t
                    "expected": c.get("expected"), "rule": c.get("rule"), "valid": bool(c.get("probe")),
                    "probe": c.get("probe"), "file": c.get("file"), "invalid_reason": c.get("invalid_reason")}
             if row["valid"]:
-                valid_checks += 1
                 ok, output = confirm_probe(c["probe"])
                 row["outcome"] = classify_probe(ok, output)
+                if row["outcome"] in FAILURE_OUTCOMES + ("pass",):  # a broken probe inspected nothing
+                    valid_checks += 1
                 got = re.search(r"Got:\s*\n\s*(.+)", output)
                 row["got"] = got.group(1).strip() if got else None
                 row["output"] = output[-1200:]
@@ -251,9 +278,10 @@ def aggregate(reviews: list[dict], tests: dict, confirm_probe: Callable[[str], t
         if trusted:
             inspected[r["reviewer"]] = "deterministic technique"
         elif valid_checks and (changed_functions is None or any(
-                row["function"] in changed_functions for row in checks_run if row["reviewer"] == r["reviewer"] and row["valid"])):
+                row["function"] in changed_functions for row in checks_run if row["reviewer"] == r["reviewer"]
+                and row["valid"] and row["outcome"] in FAILURE_OUTCOMES + ("pass",))):
             inspected[r["reviewer"]] = f"{valid_checks} valid check(s) executed"
-        elif any(f["file"] or f["function"] for f in fs):
+        elif any(_located_in_change(f, changed_files, changed_functions) for f in fs):
             inspected[r["reviewer"]] = "located findings"
 
     # Cross-reviewer agreement and conflicts on identical calls.
@@ -269,7 +297,7 @@ def aggregate(reviews: list[dict], tests: dict, confirm_probe: Callable[[str], t
                                              and o["key"][1] == row["key"][1] and o["reviewer"] != row["reviewer"]})
 
     for row in checks_run:
-        if row["outcome"] not in ("mismatch", "exception"):
+        if row["outcome"] not in FAILURE_OUTCOMES:
             row["evidence_state"] = {"pass": "passed", "invalid": "invalid"}.get(row["outcome"], "invalid")
             continue
         justification = ground(row.get("rule") or "", row.get("expected"), sentences)
@@ -311,7 +339,7 @@ def aggregate(reviews: list[dict], tests: dict, confirm_probe: Callable[[str], t
             ok, output = confirm_probe(f["probe"])
             outcome = classify_probe(ok, output)
             f["probe_outcome"] = outcome
-            if outcome in ("mismatch", "exception"):
+            if outcome in FAILURE_OUTCOMES:
                 key = _probe_key(f["probe"])
                 justification = "deterministic reviewer" if trusted else ground(
                     f"{f['title']} {f['detail']}", key[1] if key else None, sentences)
