@@ -150,3 +150,25 @@ bugs; they show reproducibility under fixed sampling, not an automation rate.
 - README rewritten (problem, loop, control plane vs roles, real vs simulated, sandbox, measured evaluation, real
   scenarios, case study, limitations, roadmap); DEMO, PRESENTATION and ARCHITECTURE updated; D21-D23 added.
 - **License:** MIT, chosen by the owner after Milestone 6 (`LICENSE`).
+
+## Release audit (October 16, 2026)
+
+Focused review of the control plane, plus a fresh-clone smoke test (Windows `setup.ps1`, a manual venv, and the
+Linux quick start on Ubuntu 24 under WSL). Findings:
+
+| Severity | Finding | Status |
+|---|---|---|
+| High (demo) | The dashboard's runtime selector defaulted to "Real local inference (Ollama)" even with no Ollama, so following "pick a sample and press Submit" started a real-runtime workflow that could only fail | fixed: starts on the server's default runtime (`SF_RUNTIME`, simulated); `tests/test_release_audit.py` |
+| Medium | A relative `SF_DATA_DIR` (e.g. `../data`) made every bug workflow fail at `workspace` (git and sandboxed commands run with other working directories) | fixed: `Settings` resolves `data_dir` to an absolute path; regression test |
+| Medium | A model reply that was valid JSON of the wrong shape (a list, `edits` as a string, a numeric `path`) raised inside the coding step and failed the workflow permanently (fail-closed, but one malformed reply ended the run) | fixed: `parse_json` requires an object; the coder validates action shapes and returns errors to the model; regression test |
+| Low | `str.lstrip("./")` on model-supplied paths also strips leading dots (`.github/x` → `github/x`); such paths are refused rather than escaping | documented |
+| Low | On its last turn the coder's submitted patch is kept even if its self-check failed; the deterministic `testing` step then fails it | by design, documented |
+| Low | Evidence packages record the backend per test run, not per reviewer check (checks use the same execution path) | documented in README limitations |
+
+Confirmed sound in this audit: approval requires `awaiting_approval` and gate SUCCESS inside one transition; the real
+runtime blocks without Docker and never substitutes simulated reviewers; workspace paths are resolved (symlink
+escapes refused, `.git` blocked, writes glob-restricted); foreign `Host` and cross-origin state-changing requests get
+403; evidence export works from a fresh clone; the demo repository's `main` is unchanged after approval.
+
+Scenario B was re-verified claim by claim against its saved records: [docs/SCENARIO_B_VERIFICATION.md](docs/SCENARIO_B_VERIFICATION.md).
+The evaluation figures in the README were re-computed from `evaluation/results/report.json` and match.

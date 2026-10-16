@@ -53,6 +53,11 @@ class Settings:
     command_timeout_seconds: int = 60
     concurrency: int = 2
 
+    def __post_init__(self) -> None:
+        # Git and sandboxed commands run with other working directories: a relative SF_DATA_DIR such as "../data"
+        # would point somewhere else for them (every workspace step failed). Pin it once, here.
+        self.data_dir = Path(self.data_dir).expanduser().resolve()
+
     @classmethod
     def from_env(cls) -> "Settings":
         return cls(data_dir=Path(os.environ.get("SF_DATA_DIR", PROJECT_ROOT / "data")))

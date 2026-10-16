@@ -33,7 +33,7 @@ too** (or run `init-demo --force`), because an existing demo repo is never overw
 
 ## Part 1: deterministic runtime (recommended for the live demo)
 
-In the dashboard, set **Runtime** to **Deterministic simulation** before submitting.
+In the dashboard, check that **Runtime** shows **Deterministic simulation** (the default unless `SF_RUNTIME=ollama`).
 
 **0:00 to 0:30: Frame it.** Point at the header badge and the **Runtime & providers** panel. Say: "The control
 plane is deterministic in both runtimes. Here the coder and both reviewers are deterministic simulations, and every

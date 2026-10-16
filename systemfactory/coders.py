@@ -98,11 +98,17 @@ def _apply_edits(current: dict[str, str], edits: list[dict], targets: list[str])
     new = dict(current)
     errors = []
     for k, e in enumerate(edits, 1):
-        f = (e.get("file") or "").replace("\\", "/").lstrip("./")
+        if not isinstance(e, dict):
+            errors.append(f"edit {k}: must be an object with file, search and replace")
+            continue
+        f = str(e.get("file") or "").replace("\\", "/").lstrip("./")
         if f not in targets:
             errors.append(f"edit {k}: '{f}' is outside the allowed files {targets}")
             continue
         search, replace = e.get("search", ""), e.get("replace", "")
+        if not isinstance(search, str) or not isinstance(replace, str):
+            errors.append(f"edit {k}: search and replace must be strings")
+            continue
         count = new[f].count(search) if search else 0
         if count != 1:
             errors.append(f"edit {k}: search text occurs {count} times in {f} (must be exactly once); copy it exactly")
@@ -174,7 +180,7 @@ def run(ctx: StepContext, *, n: int, prev: dict | None, fb: dict, strategy: str,
             tool("list_files", {}, True, out, t0, call["id"])
             messages.append({"role": "user", "content": f"Tracked files:\n{out}"})
         elif a == "read_file":
-            path = (act.get("path") or "").replace("\\", "/").lstrip("./")
+            path = str(act.get("path") or "").replace("\\", "/").lstrip("./")
             if path not in tracked:
                 tool("read_file", {"path": path}, False, "not a tracked file", t0, call["id"])
                 messages.append({"role": "user", "content": f"'{path}' is not a tracked file. Use list_files."})
@@ -194,6 +200,8 @@ def run(ctx: StepContext, *, n: int, prev: dict | None, fb: dict, strategy: str,
             messages.append({"role": "user", "content": out})
         elif a == "submit":
             edits = act.get("edits") or []
+            if not isinstance(edits, list):  # malformed model output is feedback for the model, never a crash
+                edits = [edits]
             current = {f: read_only.read_text(f) for f in targets}
             new, errors = _apply_edits(current, edits, targets)
             if not edits:

@@ -160,16 +160,26 @@ class OllamaClient:
                           raw_meta={k: d.get(k) for k in ("done_reason", "created_at")})
 
 
+_UNPARSED = object()
+
+
 def parse_json(text: str) -> dict:
+    """The model's reply as a JSON object. Valid JSON that is not an object (a list, a string, a number) is invalid
+    output too: every caller reads fields from it."""
+    obj: object = _UNPARSED
     try:
-        return json.loads(text)
+        obj = json.loads(text)
     except json.JSONDecodeError:
         m = re.search(r"\{.*\}", text, re.S)
         if m:
             try:
-                return json.loads(m.group(0))
+                obj = json.loads(m.group(0))
             except json.JSONDecodeError:
                 pass
+    if isinstance(obj, dict):
+        return obj
+    if obj is not _UNPARSED:
+        raise InvalidModelOutput(f"model reply is JSON but not an object: {text[:200]!r}")
     raise InvalidModelOutput(f"model reply is not valid JSON: {text[:200]!r}")
 
 

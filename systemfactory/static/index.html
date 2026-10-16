@@ -160,7 +160,7 @@ main > * { min-width: 0; }
       <h2>Submit a sample issue</h2>
       <select id="sample"></select>
       <label>Runtime</label>
-      <select id="runtimeSel"><option value="ollama">Real local inference (Ollama)</option><option value="simulated">Deterministic simulation</option></select>
+      <select id="runtimeSel"><option value="simulated">Deterministic simulation</option><option value="ollama">Real local inference (Ollama)</option></select>
       <label class="check"><input type="checkbox" id="nofeedback"> Withhold review feedback from the coder (ablation: demonstrates stall detection with a real model)</label>
       <label class="check"><input type="checkbox" id="fault"> Inject a transient fault in step
         <select id="faultStep" style="width:auto"><option>reproduce</option><option>coding</option><option>triage</option><option>testing</option></select></label>
@@ -206,9 +206,14 @@ async function loadSamples() {
   $("#sample").innerHTML = samples.map(s => `<option value="${esc(s.key)}">${esc(s.label)}</option>`).join("");
 }
 
+let runtimeDefaultApplied = false;
 async function refreshHeader() {
   const h = await api("/api/health");
   const rt = h.runtime;
+  if (!runtimeDefaultApplied) {  // start from the server's configured runtime (SF_RUNTIME); never override a user choice
+    runtimeDefaultApplied = true;
+    if (rt.available_modes.includes(rt.mode)) $("#runtimeSel").value = rt.mode;
+  }
   const ol = rt.ollama || {};
   $("#runtime").textContent = `default runtime: ${rt.mode === "simulated" ? "SIMULATED" : "REAL (Ollama)"} · Ollama ${ol.reachable ? "connected " + ol.version : "NOT reachable"}`;
   $("#runtime").className = "badge " + (ol.reachable ? "" : "sim");

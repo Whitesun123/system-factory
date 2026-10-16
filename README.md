@@ -25,11 +25,16 @@ flowchart LR
 ## The problem
 
 A patch that passes the tests can still be wrong, and a model reviewer's verdict is not evidence. In this
-project's own measurements, the best local reviewer model (phi4:14b) approved all 9 defective patches by its own
-verdict, and the other models did little better. The same reviewers' **executable checks**, run in a sandbox
-and traced to the requirements, caught 6 of the 9 defects without blocking a correct change
-([evaluation](#measured-reviewer-evaluation)). System Factory is built
-around that difference.
+project's own measurements, Reviewer A (phi4:14b) approved all 9 defective patches by its own verdict, and the other
+local models did little better. The same reviewers' **executable checks**, run in a sandbox and traced to the
+requirements, let the selected two-reviewer panel catch 6 of the 9 defects, with 1 false approval, 2 escalations to a
+human and no correct change blocked ([evaluation](#measured-reviewer-evaluation)). System Factory is built around
+that difference: it acts on executed evidence, never on a verdict.
+
+The clearest real example ([verification](docs/SCENARIO_B_VERIFICATION.md)): a real coding model fixed the reported
+function, the deterministic tests passed, and **both real reviewers approved**. But both had also proposed the check
+`shipping_banner(50.0)`, which failed when executed in the sandbox. The control plane confirmed it against the
+documentation, sent it back as feedback, and the coder's second iteration fixed the unreported defect.
 
 ## How the loop works
 
@@ -97,12 +102,21 @@ Deterministic-runtime captures: [01](docs/screenshots/01-iterations-review-loop.
 
 ## One-command demo
 
+Windows (PowerShell):
+
 ```powershell
 git clone https://github.com/Whitesun123/system-factory.git; cd system-factory; .\scripts\setup.ps1; .\scripts\start.ps1
 ```
 
-Then open http://127.0.0.1:8765, pick a sample and press **Submit**. The deterministic runtime needs no GPU,
-network or model. For a fully scripted, offline run of all samples on the command line:
+Linux or macOS (Python 3.11+ and git):
+
+```bash
+git clone https://github.com/Whitesun123/system-factory.git && cd system-factory && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt -c constraints.txt && .venv/bin/python -m systemfactory init-demo && .venv/bin/python -m systemfactory serve --port 8765
+```
+
+Then open http://127.0.0.1:8765, pick a sample (for example *bulk discount*, which fails review in iteration 1 and is
+corrected in iteration 2) and press **Submit**. The runtime selector starts on **Deterministic simulation**, which
+needs no GPU, network, model or Docker. For a fully scripted, offline run of all samples on the command line:
 
 ```powershell
 python -m systemfactory demo
@@ -156,7 +170,10 @@ provider, every test and check in the Docker sandbox. Results were checked again
 
 These are **repeated observations at temperature 0 with fixed seeds**, on two small synthetic bugs. That shows the
 behaviour is reproducible under fixed sampling. It is not an automation rate. Evidence packages, including every
-prompt and response (sanitized): [examples/evidence/real/](examples/evidence/real/).
+prompt and response (sanitized): [examples/evidence/real/](examples/evidence/real/). A claim-by-claim check of one
+Scenario B package against its saved records: [docs/SCENARIO_B_VERIFICATION.md](docs/SCENARIO_B_VERIFICATION.md).
+Reproducing the real runs needs Ollama, about 25 GB of models and Docker; the recorded evidence is there so that a
+reviewer does not have to.
 
 ## Execution sandbox
 
@@ -279,6 +296,9 @@ reviewer selection). Architecture: [ARCHITECTURE.md](ARCHITECTURE.md).
   a human.
 - **Local, single-user.** No authentication; the API binds to 127.0.0.1 and rejects cross-site and rebinding
   requests.
+- **Evidence granularity.** Evidence packages record the execution backend for every test run, but reviewer checks
+  only through the workflow's backend setting (they use the same execution path); there is no per-check backend
+  field.
 
 ## Roadmap
 
