@@ -2,7 +2,7 @@
 
 Two parts. **Part 1** uses the deterministic runtime: no GPU or network needed, every result reproducible, and the
 same scenarios run in CI. Use it for the live demo. **Part 2** is optional and shows the same pipeline with real
-local models via Ollama. Present it only as "real inference, partially validated" (see the status table below).
+local models via Ollama. Present it as "real local inference on two small synthetic bugs, repeated at fixed seeds" (table below).
 
 ## Before the demo (1 minute, off-screen)
 
@@ -67,8 +67,8 @@ The badge reads "SIMULATED: no real models; reviewers are independent by techniq
 reviewers are real models, but two models on one runtime are still one provider, and the label says so."
 
 **4:30 to 5:00: Wrap.** Show the **Log** tab, where every phase transition (`Iteration 1: reviewing -> aggregating`) and
-every decision has an actor and a timestamp. Click **Export evidence (.zip)**. Close with: "Next: run the
-real-model scenarios on the final code, then a container sandbox."
+every decision has an actor and a timestamp. Click **Export evidence (.zip)**. Close with: "The same pipeline
+runs real local models in a Docker sandbox; here are the recorded real runs."
 
 ## CLI-only fallback
 
@@ -93,17 +93,17 @@ Pick **Real local inference (Ollama)** in the dashboard and submit `checkout` or
 model call with model and digest, the tokens reported by Ollama, timing, the coder's tool calls (`run_tests`,
 `submit`), and each reviewer's executed checks. A cold model load takes 7–25 s on an RTX 5080.
 
-| Real-model scenario | Status |
+| Real-model scenario | Result (2 runs x repeat 2, temperature 0, fixed seeds; `examples/evidence/real/`) |
 |---|---|
-| A. Genuine bug fixed by the real coder and approved by real reviewers | **Observed once** (bulk discount, 43 s) on earlier Milestone 5 code |
-| B. Incomplete first fix → real reviewer feedback → revision → gate | **Not validated** with the final code. An earlier run was a real *false approval*, which led to the executed-checks design (DECISIONS D18) |
-| C. Repeated solution / stall with a real coder (feedback ablation) | **Not validated** |
-| D. Provider unavailable / model timeout | Unavailable: covered offline against a closed port. Real model timeout: **not validated** |
-| E. Approval guard on real-runtime workflows | Guard verified deterministically. **Not run** inside `scripts/real_demo.py` |
+| A. Genuine bug fixed by the real coder, approved by real reviewers | 4/4 pass in 1 iteration, gate SUCCESS, hidden oracle satisfied |
+| B. Incomplete first fix, real review feedback, revision, gate | 4/4 revise then pass: both reviewers confirmed `shipping_banner(50.0)` by execution; iteration 2 fixed it |
+| C. Repeated solution / stall with a real coder (feedback ablation) | 2/2 stalled on the same fingerprint, escalated |
+| D. Provider unavailable / model timeout / cancellation | 2/2 each: failed after 3 attempts with recorded failed calls / failed / cancelled |
+| E. Approval guard on real-runtime workflows | only gate-SUCCESS workflows approvable; demo `main` unchanged |
 
-To run all five: `python scripts\real_demo.py`. It writes evidence to `data-real-demo/evidence/` and checks results
-against an oracle the agents never see. If a model fails, the run shows the real failure; it never substitutes a
-simulation.
+To run all five: `python scripts\real_demo.py --repeat 2`. It needs Docker and the sandbox image (the real runtime
+refuses to run without isolation), writes evidence to `data-real-demo/evidence/`, and checks results against an
+oracle the agents never see. If a model fails, the run shows the real failure; it never substitutes a simulation.
 
 ## Evidence this demo works
 

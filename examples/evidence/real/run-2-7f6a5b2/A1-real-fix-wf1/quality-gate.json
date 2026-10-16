@@ -1,0 +1,127 @@
+{
+  "status": "SUCCESS",
+  "gate": {
+    "status": "SUCCESS",
+    "commit": "f8a46b4086fe7026fc739956a194b15c410742b4",
+    "iterations": 1,
+    "checks": {
+      "repro_fails_on_base": {
+        "ok": true,
+        "note": "reproduction test failed on the base commit"
+      },
+      "repro_passes": {
+        "ok": true,
+        "note": "reproduction test re-run on f8a46b4086: 1 passed in 0.07s"
+      },
+      "suite_passes": {
+        "ok": true,
+        "note": "full suite re-run: 18 passed in 0.14s"
+      },
+      "review_probes": {
+        "ok": true,
+        "note": "0/0 probes from review feedback pass"
+      },
+      "scope": {
+        "ok": true,
+        "note": "changed files: shopcart/cart.py"
+      },
+      "security": {
+        "ok": true,
+        "note": "0 scanner finding(s), none high"
+      },
+      "loop_passed": {
+        "ok": true,
+        "note": "final iteration 1 decision: pass"
+      },
+      "no_blocking_findings": {
+        "ok": true,
+        "note": "0 unresolved blocking finding(s) after evidence confirmation"
+      },
+      "independent_reviews": {
+        "ok": true,
+        "note": "2 independent reviews completed in the final iteration"
+      },
+      "reviews_inspected_change": {
+        "ok": true,
+        "note": "2 review(s) did observable work on the change (executed checks, located findings or a deterministic technique)"
+      },
+      "no_unresolved_evidence": {
+        "ok": true,
+        "note": "0 finding(s) with unsupported or conflicting evidence"
+      },
+      "reviewed_commit_is_final": {
+        "ok": true,
+        "note": "reviewed commit f8a46b4086 vs final HEAD f8a46b4086, worktree clean"
+      },
+      "budget": {
+        "ok": true,
+        "note": "1/4 iterations, $0.0000 of $1.00"
+      }
+    },
+    "criteria": [
+      {
+        "criterion": "A reproduction test derived from the issue example fails on the base commit",
+        "check": "repro_fails_on_base",
+        "ok": true,
+        "note": "reproduction test failed on the base commit"
+      },
+      {
+        "criterion": "The same test passes after the change",
+        "check": "repro_passes",
+        "ok": true,
+        "note": "reproduction test re-run on f8a46b4086: 1 passed in 0.07s"
+      },
+      {
+        "criterion": "The full existing test suite still passes",
+        "check": "suite_passes",
+        "ok": true,
+        "note": "full suite re-run: 18 passed in 0.14s"
+      },
+      {
+        "criterion": "Only the source files named in the plan are modified; tests are not modified by the coding agent",
+        "check": "scope",
+        "ok": true,
+        "note": "changed files: shopcart/cart.py"
+      },
+      {
+        "criterion": "No security findings of high severity in the diff",
+        "check": "security",
+        "ok": true,
+        "note": "0 scanner finding(s), none high"
+      },
+      {
+        "criterion": "A human approves the change before it is merged (System Factory never merges)",
+        "check": "human_approval",
+        "ok": true,
+        "note": "enforced by the approval gate"
+      }
+    ],
+    "diversity": {
+      "reviewers": 2,
+      "real_model_reviewers": 2,
+      "real_providers": [
+        "ollama"
+      ],
+      "real_models": [
+        "phi4:14b",
+        "qwen3:14b"
+      ],
+      "real_provider_diversity": false,
+      "label": "REAL local inference: 2 reviewers, 2 different models (phi4:14b, qwen3:14b) on ONE provider (ollama); not multi-provider"
+    }
+  },
+  "gate_report": "Checks:\n[PASS] repro_fails_on_base: reproduction test failed on the base commit\n[PASS] repro_passes: reproduction test re-run on f8a46b4086: 1 passed in 0.07s\n[PASS] suite_passes: full suite re-run: 18 passed in 0.14s\n[PASS] review_probes: 0/0 probes from review feedback pass\n[PASS] scope: changed files: shopcart/cart.py\n[PASS] security: 0 scanner finding(s), none high\n[PASS] loop_passed: final iteration 1 decision: pass\n[PASS] no_blocking_findings: 0 unresolved blocking finding(s) after evidence confirmation\n[PASS] independent_reviews: 2 independent reviews completed in the final iteration\n[PASS] reviews_inspected_change: 2 review(s) did observable work on the change (executed checks, located findings or a deterministic technique)\n[PASS] no_unresolved_evidence: 0 finding(s) with unsupported or conflicting evidence\n[PASS] reviewed_commit_is_final: reviewed commit f8a46b4086 vs final HEAD f8a46b4086, worktree clean\n[PASS] budget: 1/4 iterations, $0.0000 of $1.00\n\nAcceptance criteria:\n[PASS] A reproduction test derived from the issue example fails on the base commit — reproduction test failed on the base commit\n[PASS] The same test passes after the change — reproduction test re-run on f8a46b4086: 1 passed in 0.07s\n[PASS] The full existing test suite still passes — full suite re-run: 18 passed in 0.14s\n[PASS] Only the source files named in the plan are modified; tests are not modified by the coding agent — changed files: shopcart/cart.py\n[PASS] No security findings of high severity in the diff — 0 scanner finding(s), none high\n[PASS] A human approves the change before it is merged (System Factory never merges) — enforced by the approval gate\n\nQuality gate: SUCCESS. Final decision belongs to a human approver; nothing is merged.",
+  "escalation": null,
+  "approvals": [
+    {
+      "id": 1,
+      "workflow_id": 1,
+      "decision": "approved",
+      "actor": "demo-reviewer",
+      "comment": "scenario E",
+      "ts": 1792114258.3254528
+    }
+  ],
+  "final_state": "approved",
+  "termination_reason": "approved by a human after quality gate SUCCESS"
+}

@@ -1,0 +1,269 @@
+[
+  {
+    "id": 257,
+    "workflow_id": 7,
+    "ts": 1792112940.4194946,
+    "level": "info",
+    "step": null,
+    "actor": "intake",
+    "message": "Issue #7 received from sample:bulk: Bulk discount not applied when ordering exactly 10 units",
+    "data": {}
+  },
+  {
+    "id": 258,
+    "workflow_id": 7,
+    "ts": 1792112940.4946969,
+    "level": "info",
+    "step": null,
+    "actor": "orchestrator",
+    "message": "State queued -> running: claimed by worker-32572-3bb226",
+    "data": {
+      "from": "queued",
+      "to": "running"
+    }
+  },
+  {
+    "id": 259,
+    "workflow_id": 7,
+    "ts": 1792112940.5256252,
+    "level": "info",
+    "step": "triage",
+    "actor": "orchestrator",
+    "message": "Step 'triage' started (role: triage, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 260,
+    "workflow_id": 7,
+    "ts": 1792112940.5945961,
+    "level": "info",
+    "step": "triage",
+    "actor": "triage",
+    "message": "Classified as bug (severity medium, confidence 1.0)",
+    "data": {
+      "scores": {
+        "bug": 5,
+        "feature": 0,
+        "support": 0
+      }
+    }
+  },
+  {
+    "id": 261,
+    "workflow_id": 7,
+    "ts": 1792112940.62023,
+    "level": "info",
+    "step": "triage",
+    "actor": "orchestrator",
+    "message": "Step 'triage' succeeded on attempt 1 in 0.08s",
+    "data": {}
+  },
+  {
+    "id": 262,
+    "workflow_id": 7,
+    "ts": 1792112940.6346612,
+    "level": "info",
+    "step": null,
+    "actor": "orchestrator",
+    "message": "Pipeline for bug: triage -> requirements -> plan -> workspace -> reproduce -> coding -> testing -> review -> feedback -> quality_gate -> approval",
+    "data": {}
+  },
+  {
+    "id": 263,
+    "workflow_id": 7,
+    "ts": 1792112940.6561804,
+    "level": "info",
+    "step": "requirements",
+    "actor": "orchestrator",
+    "message": "Step 'requirements' started (role: requirements, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 264,
+    "workflow_id": 7,
+    "ts": 1792112940.7163427,
+    "level": "info",
+    "step": "requirements",
+    "actor": "orchestrator",
+    "message": "Step 'requirements' succeeded on attempt 1 in 0.04s",
+    "data": {}
+  },
+  {
+    "id": 265,
+    "workflow_id": 7,
+    "ts": 1792112940.7417407,
+    "level": "info",
+    "step": "plan",
+    "actor": "orchestrator",
+    "message": "Step 'plan' started (role: architecture, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 266,
+    "workflow_id": 7,
+    "ts": 1792112940.7896297,
+    "level": "info",
+    "step": "plan",
+    "actor": "orchestrator",
+    "message": "Step 'plan' succeeded on attempt 1 in 0.03s",
+    "data": {}
+  },
+  {
+    "id": 267,
+    "workflow_id": 7,
+    "ts": 1792112940.814021,
+    "level": "info",
+    "step": "workspace",
+    "actor": "orchestrator",
+    "message": "Step 'workspace' started (role: infra, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 268,
+    "workflow_id": 7,
+    "ts": 1792112941.0898013,
+    "level": "info",
+    "step": "workspace",
+    "actor": "infra",
+    "message": "Worktree ready at <DATA_DIR>\\worktrees\\wf-7 on sf/wf-7 (base 9538aec9ec)",
+    "data": {}
+  },
+  {
+    "id": 269,
+    "workflow_id": 7,
+    "ts": 1792112941.1152084,
+    "level": "info",
+    "step": "workspace",
+    "actor": "orchestrator",
+    "message": "Step 'workspace' succeeded on attempt 1 in 0.29s",
+    "data": {}
+  },
+  {
+    "id": 270,
+    "workflow_id": 7,
+    "ts": 1792112941.1369946,
+    "level": "info",
+    "step": "reproduce",
+    "actor": "orchestrator",
+    "message": "Step 'reproduce' started (role: qa, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 271,
+    "workflow_id": 7,
+    "ts": 1792112943.4633093,
+    "level": "info",
+    "step": "reproduce",
+    "actor": "qa",
+    "message": "Reproduced: tests/test_issue_7.py fails on base; committed 0d2bd3bbde",
+    "data": {}
+  },
+  {
+    "id": 272,
+    "workflow_id": 7,
+    "ts": 1792112943.4892266,
+    "level": "info",
+    "step": "reproduce",
+    "actor": "orchestrator",
+    "message": "Step 'reproduce' succeeded on attempt 1 in 2.34s",
+    "data": {}
+  },
+  {
+    "id": 273,
+    "workflow_id": 7,
+    "ts": 1792112943.5121884,
+    "level": "info",
+    "step": "coding",
+    "actor": "orchestrator",
+    "message": "Step 'coding' started (role: coding, up to 3 attempts)",
+    "data": {}
+  },
+  {
+    "id": 274,
+    "workflow_id": 7,
+    "ts": 1792112943.5373151,
+    "level": "info",
+    "step": "coding",
+    "actor": "orchestrator",
+    "message": "Iteration 1 started",
+    "data": {
+      "iteration": 1
+    }
+  },
+  {
+    "id": 275,
+    "workflow_id": 7,
+    "ts": 1792112945.0869143,
+    "level": "warning",
+    "step": "coding",
+    "actor": "orchestrator",
+    "message": "Attempt 1 failed (retryable): coder model call failed: model 'qwen2.5-coder:14b' did not finish within 1s",
+    "data": {}
+  },
+  {
+    "id": 276,
+    "workflow_id": 7,
+    "ts": 1792112945.352429,
+    "level": "info",
+    "step": "coding",
+    "actor": "orchestrator",
+    "message": "Retrying 'coding' (attempt 2)",
+    "data": {}
+  },
+  {
+    "id": 277,
+    "workflow_id": 7,
+    "ts": 1792112946.9662004,
+    "level": "warning",
+    "step": "coding",
+    "actor": "orchestrator",
+    "message": "Attempt 2 failed (retryable): coder model call failed: model 'qwen2.5-coder:14b' did not finish within 1s",
+    "data": {}
+  },
+  {
+    "id": 278,
+    "workflow_id": 7,
+    "ts": 1792112947.492348,
+    "level": "info",
+    "step": "coding",
+    "actor": "orchestrator",
+    "message": "Retrying 'coding' (attempt 3)",
+    "data": {}
+  },
+  {
+    "id": 279,
+    "workflow_id": 7,
+    "ts": 1792112949.0579648,
+    "level": "warning",
+    "step": "coding",
+    "actor": "orchestrator",
+    "message": "Attempt 3 failed (retryable): coder model call failed: model 'qwen2.5-coder:14b' did not finish within 1s",
+    "data": {}
+  },
+  {
+    "id": 280,
+    "workflow_id": 7,
+    "ts": 1792112949.0743723,
+    "level": "info",
+    "step": null,
+    "actor": "orchestrator",
+    "message": "Iteration 1: coding -> failed",
+    "data": {
+      "iteration": 1,
+      "to": "failed"
+    }
+  },
+  {
+    "id": 281,
+    "workflow_id": 7,
+    "ts": 1792112949.0819604,
+    "level": "info",
+    "step": null,
+    "actor": "orchestrator",
+    "message": "State running -> failed: coding: retries exhausted after 3 attempts; last error: coder model call failed: model 'qwen2.5-coder:14b' did not finish within 1s",
+    "data": {
+      "from": "running",
+      "to": "failed"
+    }
+  }
+]

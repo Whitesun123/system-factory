@@ -1,0 +1,976 @@
+[
+  {
+    "n": 1,
+    "status": "revise",
+    "base": "9e0602883caf42c35f6627ca91d33dd3397e9a2d",
+    "commit": "2e70ef38108c4c87a2003b6b80a0f425af597be5",
+    "fingerprint": "ec67817129ef1f92",
+    "patch": {
+      "file": "shopcart/checkout.py",
+      "mutation": "Fix shipping cost calculation for exactly $50.00 orders",
+      "tier": null,
+      "coder": "ollama",
+      "model": "qwen2.5-coder:14b",
+      "strategy": "fresh",
+      "base": "9e0602883caf42c35f6627ca91d33dd3397e9a2d",
+      "addressed": [],
+      "required_probes": 0,
+      "turns": 2,
+      "self_check": {
+        "repro": 0,
+        "suite": 0
+      },
+      "feedback_given": false,
+      "skipped_rejected": 0
+    },
+    "decision": "revise",
+    "decision_reason": "Iteration 1: 1 blocking finding(s); sending feedback to the coding agent.",
+    "failure_signature": "c4f2a3367679",
+    "blocking_count": 1,
+    "started_at": 1792113883.2688296,
+    "finished_at": 1792113964.4442816,
+    "tests": {
+      "iteration": 1,
+      "commit": "2e70ef38108c4c87a2003b6b80a0f425af597be5",
+      "repro_passed": true,
+      "suite_passed": true,
+      "repro_summary": "1 passed in 0.07s",
+      "suite_summary": "18 passed in 0.14s",
+      "probes": [],
+      "probes_passed": true,
+      "security": {
+        "passed": true,
+        "findings": [],
+        "files_changed": [
+          "shopcart/checkout.py"
+        ],
+        "lines_added": 1,
+        "lines_removed": 1,
+        "scanner": "static pattern + scope rules v1"
+      },
+      "all_passed": true
+    },
+    "feedback": {
+      "items": [
+        {
+          "severity": "blocking",
+          "title": "Shipping banner shows incorrect message for exactly $50.00",
+          "location": {
+            "file": "shopcart/checkout.py",
+            "where": "shipping_banner",
+            "lines": [
+              18
+            ]
+          },
+          "sources": [
+            "ollama-a",
+            "ollama-b"
+          ],
+          "corroborated": true,
+          "rules": [
+            "llm-ollama-a",
+            "llm-ollama-b",
+            "reviewer-check"
+          ],
+          "evidence_states": [
+            "confirmed",
+            "unsupported"
+          ],
+          "probes": [
+            ">>> from shopcart.checkout import shipping_banner\n>>> shipping_banner(50.0)\n'Your order ships free!'",
+            ">>> from shopcart.checkout import shipping_banner\n>>> shipping_banner(50.0)\n'Your order ships free!'\n"
+          ],
+          "suggestions": [
+            "Change the condition in shipping_banner from 'if remaining < 0' to 'if remaining <= 0'.",
+            "Make shipping_banner(50.0) return 'Your order ships free!'.",
+            "Make shipping_banner(50.0) return 'Your order ships free!'.",
+            "Add checks for values just below, at, and above the threshold."
+          ],
+          "findings": [
+            {
+              "severity": "blocking",
+              "rule": "llm-ollama-b",
+              "title": "Shipping banner shows incorrect message for exactly $50.00",
+              "detail": "The shipping_banner function returns 'Add $0.00 more...' for exactly $50.00 instead of 'Your order ships free!'. This is because the condition checks 'remaining < 0' instead of 'remaining <= 0'. [upgraded to blocking: probe confirmed by execution; reviewer said major]",
+              "file": "shopcart/checkout.py",
+              "line": 18,
+              "function": "shipping_banner",
+              "evidence": "When subtotal is 50.0, remaining is 0.0, so the 'if remaining < 0' condition is false, and the function returns 'Add $0.00 more...' instead of the correct message.",
+              "suggestion": "Change the condition in shipping_banner from 'if remaining < 0' to 'if remaining <= 0'.",
+              "probe": ">>> from shopcart.checkout import shipping_banner\n>>> shipping_banner(50.0)\n'Your order ships free!'",
+              "reviewer": "ollama-b",
+              "confirmed": true,
+              "probe_outcome": "mismatch",
+              "evidence_state": "confirmed",
+              "reviewer_severity": "major"
+            },
+            {
+              "severity": "blocking",
+              "rule": "reviewer-check",
+              "title": "Specification check failed: shipping_banner(50.0) should be 'Your order ships free!'",
+              "detail": "Executed against the patched code: returned 'Add $0.00 more for free shipping'. Rule: Banner should confirm free shipping for orders of $50.00 or more.. Justified by: \"'Your order ships free!'\"",
+              "file": "shopcart/checkout.py",
+              "line": null,
+              "function": "shipping_banner",
+              "evidence": "**********************************************************************\nFile \"probe\", line 2, in probe\nFailed example:\n    shipping_banner(50.0)\nExpected:\n    'Your order ships free!'\nGot:\n    'Add $0.00 more for free shipping'\n\n",
+              "suggestion": "Make shipping_banner(50.0) return 'Your order ships free!'.",
+              "probe": ">>> from shopcart.checkout import shipping_banner\n>>> shipping_banner(50.0)\n'Your order ships free!'\n",
+              "reviewer": "ollama-a",
+              "confirmed": true,
+              "probe_outcome": "mismatch",
+              "prechecked": true,
+              "evidence_state": "confirmed"
+            },
+            {
+              "severity": "blocking",
+              "rule": "reviewer-check",
+              "title": "Specification check failed: shipping_banner(50.0) should be 'Your order ships free!'",
+              "detail": "Executed against the patched code: returned 'Add $0.00 more for free shipping'. Rule: Orders of $50.00 or more should show free shipping message. Justified by: \"'Your order ships free!'\"",
+              "file": "shopcart/checkout.py",
+              "line": null,
+              "function": "shipping_banner",
+              "evidence": "**********************************************************************\nFile \"probe\", line 2, in probe\nFailed example:\n    shipping_banner(50.0)\nExpected:\n    'Your order ships free!'\nGot:\n    'Add $0.00 more for free shipping'\n\n",
+              "suggestion": "Make shipping_banner(50.0) return 'Your order ships free!'.",
+              "probe": ">>> from shopcart.checkout import shipping_banner\n>>> shipping_banner(50.0)\n'Your order ships free!'\n",
+              "reviewer": "ollama-b",
+              "confirmed": true,
+              "probe_outcome": "mismatch",
+              "prechecked": true,
+              "evidence_state": "confirmed"
+            },
+            {
+              "severity": "unresolved",
+              "rule": "llm-ollama-a",
+              "title": "Check boundary conditions around FREE_SHIPPING_THRESHOLD for `shipping_banner`",
+              "detail": "Ensure that the function behaves as expected at critical boundaries. [unresolved: probe fails, but its expectation is not traceable to any requirement]",
+              "file": "shopcart/checkout.py",
+              "line": null,
+              "function": "shipping_banner",
+              "evidence": "The function should correctly display messages based on order totals around the threshold.",
+              "suggestion": "Add checks for values just below, at, and above the threshold.",
+              "probe": ">>> from shopcart.checkout import shipping_banner\n>>> shipping_banner(49.99)\n'Add $0.01 more for free shipping'\n>>> shipping_banner(50.0)\n'Your order ships free!'\n>>> shipping_banner(50.01)\n'Your order ships free!'",
+              "reviewer": "ollama-a",
+              "confirmed": false,
+              "probe_outcome": "mismatch",
+              "evidence_state": "unsupported"
+            }
+          ],
+          "id": "F1"
+        },
+        {
+          "severity": "minor",
+          "title": "Check boundary conditions around FREE_SHIPPING_THRESHOLD",
+          "location": {
+            "file": "shopcart/checkout.py",
+            "where": "shipping_cost",
+            "lines": []
+          },
+          "sources": [
+            "ollama-a"
+          ],
+          "corroborated": false,
+          "rules": [
+            "llm-ollama-a"
+          ],
+          "evidence_states": [
+            "unverified"
+          ],
+          "probes": [],
+          "suggestions": [
+            "Add checks for values just below, at, and above the threshold."
+          ],
+          "findings": [
+            {
+              "severity": "minor",
+              "rule": "llm-ollama-a",
+              "title": "Check boundary conditions around FREE_SHIPPING_THRESHOLD",
+              "detail": "Ensure that the function behaves as expected at critical boundaries. [unconfirmed: probe passes on current code]",
+              "file": "shopcart/checkout.py",
+              "line": null,
+              "function": "shipping_cost",
+              "evidence": "The patch changes the condition to `subtotal >= FREE_SHIPPING_THRESHOLD`, which should be verified with boundary tests.",
+              "suggestion": "Add checks for values just below, at, and above the threshold.",
+              "probe": ">>> from shopcart.checkout import shipping_cost\n>>> shipping_cost(49.99)\n4.99\n>>> shipping_cost(50.0)\n0.0\n>>> shipping_cost(50.01)\n0.0",
+              "reviewer": "ollama-a",
+              "confirmed": false,
+              "probe_outcome": "pass",
+              "evidence_state": "unverified"
+            }
+          ],
+          "id": "F2"
+        }
+      ],
+      "blocking_count": 1,
+      "unresolved_count": 0,
+      "signature": "c4f2a3367679",
+      "checks": [
+        {
+          "reviewer": "ollama-a",
+          "function": "shipping_cost",
+          "call": "shipping_cost(49.99)",
+          "expected": "4.99",
+          "rule": "Orders below $50.00 should incur a shipping fee.",
+          "valid": true,
+          "probe": ">>> from shopcart.checkout import shipping_cost\n>>> shipping_cost(49.99)\n4.99\n",
+          "file": "shopcart/checkout.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "shipping_cost(49.99)",
+            "4.99"
+          ],
+          "conflicting": false,
+          "corroborated_by": [
+            "ollama-b"
+          ],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-a",
+          "function": "shipping_cost",
+          "call": "shipping_cost(50.0)",
+          "expected": "0.0",
+          "rule": "Orders of exactly $50.00 should ship free.",
+          "valid": true,
+          "probe": ">>> from shopcart.checkout import shipping_cost\n>>> shipping_cost(50.0)\n0.0\n",
+          "file": "shopcart/checkout.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "shipping_cost(50.0)",
+            "0.0"
+          ],
+          "conflicting": false,
+          "corroborated_by": [
+            "ollama-b"
+          ],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-a",
+          "function": "shipping_cost",
+          "call": "shipping_cost(50.01)",
+          "expected": "0.0",
+          "rule": "Orders above $50.00 should ship free.",
+          "valid": true,
+          "probe": ">>> from shopcart.checkout import shipping_cost\n>>> shipping_cost(50.01)\n0.0\n",
+          "file": "shopcart/checkout.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "shipping_cost(50.01)",
+            "0.0"
+          ],
+          "conflicting": false,
+          "corroborated_by": [
+            "ollama-b"
+          ],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-a",
+          "function": "shipping_banner",
+          "call": "shipping_banner(49.99)",
+          "expected": "'Add $0.01 more for free shipping'",
+          "rule": "Banner should indicate how much more is needed to qualify for free shipping.",
+          "valid": true,
+          "probe": ">>> from shopcart.checkout import shipping_banner\n>>> shipping_banner(49.99)\n'Add $0.01 more for free shipping'\n",
+          "file": "shopcart/checkout.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "shipping_banner(49.99)",
+            "'Add $0.01 more for free shipping'"
+          ],
+          "conflicting": false,
+          "corroborated_by": [
+            "ollama-b"
+          ],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-a",
+          "function": "shipping_banner",
+          "call": "shipping_banner(50.0)",
+          "expected": "'Your order ships free!'",
+          "rule": "Banner should confirm free shipping for orders of $50.00 or more.",
+          "valid": true,
+          "probe": ">>> from shopcart.checkout import shipping_banner\n>>> shipping_banner(50.0)\n'Your order ships free!'\n",
+          "file": "shopcart/checkout.py",
+          "invalid_reason": null,
+          "outcome": "mismatch",
+          "got": "'Add $0.00 more for free shipping'",
+          "key": [
+            "shipping_banner(50.0)",
+            "'Your order ships free!'"
+          ],
+          "conflicting": false,
+          "corroborated_by": [
+            "ollama-b"
+          ],
+          "grounding": "'Your order ships free!'",
+          "evidence_state": "confirmed"
+        },
+        {
+          "reviewer": "ollama-b",
+          "function": "shipping_cost",
+          "call": "shipping_cost(50.0)",
+          "expected": "0.0",
+          "rule": "Orders of $50.00 or more ship free",
+          "valid": true,
+          "probe": ">>> from shopcart.checkout import shipping_cost\n>>> shipping_cost(50.0)\n0.0\n",
+          "file": "shopcart/checkout.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "shipping_cost(50.0)",
+            "0.0"
+          ],
+          "conflicting": false,
+          "corroborated_by": [
+            "ollama-a"
+          ],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-b",
+          "function": "shipping_cost",
+          "call": "shipping_cost(49.99)",
+          "expected": "4.99",
+          "rule": "Orders below $50.00 pay the flat fee",
+          "valid": true,
+          "probe": ">>> from shopcart.checkout import shipping_cost\n>>> shipping_cost(49.99)\n4.99\n",
+          "file": "shopcart/checkout.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "shipping_cost(49.99)",
+            "4.99"
+          ],
+          "conflicting": false,
+          "corroborated_by": [
+            "ollama-a"
+          ],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-b",
+          "function": "shipping_cost",
+          "call": "shipping_cost(50.01)",
+          "expected": "0.0",
+          "rule": "Orders above $50.00 ship free",
+          "valid": true,
+          "probe": ">>> from shopcart.checkout import shipping_cost\n>>> shipping_cost(50.01)\n0.0\n",
+          "file": "shopcart/checkout.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "shipping_cost(50.01)",
+            "0.0"
+          ],
+          "conflicting": false,
+          "corroborated_by": [
+            "ollama-a"
+          ],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-b",
+          "function": "shipping_banner",
+          "call": "shipping_banner(50.0)",
+          "expected": "'Your order ships free!'",
+          "rule": "Orders of $50.00 or more should show free shipping message",
+          "valid": true,
+          "probe": ">>> from shopcart.checkout import shipping_banner\n>>> shipping_banner(50.0)\n'Your order ships free!'\n",
+          "file": "shopcart/checkout.py",
+          "invalid_reason": null,
+          "outcome": "mismatch",
+          "got": "'Add $0.00 more for free shipping'",
+          "key": [
+            "shipping_banner(50.0)",
+            "'Your order ships free!'"
+          ],
+          "conflicting": false,
+          "corroborated_by": [
+            "ollama-a"
+          ],
+          "grounding": "'Your order ships free!'",
+          "evidence_state": "confirmed"
+        },
+        {
+          "reviewer": "ollama-b",
+          "function": "shipping_banner",
+          "call": "shipping_banner(49.99)",
+          "expected": "'Add $0.01 more for free shipping'",
+          "rule": "Orders below $50.00 show the required additional amount",
+          "valid": true,
+          "probe": ">>> from shopcart.checkout import shipping_banner\n>>> shipping_banner(49.99)\n'Add $0.01 more for free shipping'\n",
+          "file": "shopcart/checkout.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "shipping_banner(49.99)",
+            "'Add $0.01 more for free shipping'"
+          ],
+          "conflicting": false,
+          "corroborated_by": [
+            "ollama-a"
+          ],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-b",
+          "function": "shipping_banner",
+          "call": "shipping_banner(50.01)",
+          "expected": "'Your order ships free!'",
+          "rule": "Orders above $50.00 show free shipping message",
+          "valid": true,
+          "probe": ">>> from shopcart.checkout import shipping_banner\n>>> shipping_banner(50.01)\n'Your order ships free!'\n",
+          "file": "shopcart/checkout.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "shipping_banner(50.01)",
+            "'Your order ships free!'"
+          ],
+          "conflicting": false,
+          "corroborated_by": [],
+          "evidence_state": "passed"
+        }
+      ],
+      "inspected_reviews": {
+        "ollama-a": "5 valid check(s) executed",
+        "ollama-b": "6 valid check(s) executed"
+      },
+      "strategy": "build_on_previous",
+      "probes": [
+        ">>> from shopcart.checkout import shipping_banner\n>>> shipping_banner(50.0)\n'Your order ships free!'",
+        ">>> from shopcart.checkout import shipping_banner\n>>> shipping_banner(50.0)\n'Your order ships free!'\n"
+      ],
+      "focus": {
+        "lines": {
+          "shopcart/checkout.py": [
+            18
+          ]
+        },
+        "functions": [
+          "shipping_banner",
+          "shipping_cost"
+        ]
+      }
+    },
+    "llm_call_ids": [
+      17,
+      18,
+      19,
+      20
+    ],
+    "tool_calls": [
+      {
+        "id": 9,
+        "workflow_id": 4,
+        "iteration": 1,
+        "step": "coding",
+        "role": "coding",
+        "llm_call_id": 17,
+        "tool": "run_tests",
+        "args": {},
+        "ok": false,
+        "result": "******************\nE         File \"issue #4\", line 2, in issue_4\nE         Failed example:\nE             shipping_cost(50.0)\nE         Expected:\nE             0.0\nE         Got:\nE             4.99\nE         \nE       assert 1 == 0\nE        +  where 1 = TestResults(failed=1, attempted=2).failed\n\ntests/test_issue_4.py:23: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_issue_4.py::test_issue_4_reproduction - AssertionError: ***...\n1 failed in 0.09s\n\nfull suite: exit 1\n..............F...                                                       [100%]\n=================================== FAILURES ===================================\n__________________________ test_issue_4_reproduction ___________________________\n\n    def test_issue_4_reproduction():\n        result, output = run_example()\n>       assert result.failed == 0, output\nE       AssertionError: **********************************************************************\nE         File \"issue #4\", line 2, in issue_4\nE         Failed example:\nE             shipping_cost(50.0)\nE         Expected:\nE             0.0\nE         Got:\nE             4.99\nE         \nE       assert 1 == 0\nE        +  where 1 = TestResults(failed=1, attempted=2).failed\n\ntests/test_issue_4.py:23: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_issue_4.py::test_issue_4_reproduction - AssertionError: ***...\n1 failed, 17 passed in 0.18s\n",
+        "seconds": 2.251,
+        "created_at": 1792113893.943097
+      },
+      {
+        "id": 10,
+        "workflow_id": 4,
+        "iteration": 1,
+        "step": "coding",
+        "role": "coding",
+        "llm_call_id": 18,
+        "tool": "submit",
+        "args": {
+          "edits": 1,
+          "summary": "Fix shipping cost calculation for exactly $50.00 orders",
+          "fingerprint": "ec67817129ef1f92"
+        },
+        "ok": true,
+        "result": "applied 1 edit(s); reproduction test exit 0, suite exit 0",
+        "seconds": 2.124,
+        "created_at": 1792113897.320512
+      }
+    ]
+  },
+  {
+    "n": 2,
+    "status": "passed",
+    "base": "2e70ef38108c4c87a2003b6b80a0f425af597be5",
+    "commit": "cce2461c862ca5733c6ab3fb704007037d84170e",
+    "fingerprint": "f7d3fa975c525136",
+    "patch": {
+      "file": "shopcart/checkout.py",
+      "mutation": "Fixed shipping banner to correctly display 'Your order ships free!' for exactly $50.00.",
+      "tier": null,
+      "coder": "ollama",
+      "model": "qwen2.5-coder:14b",
+      "strategy": "build_on_previous",
+      "base": "2e70ef38108c4c87a2003b6b80a0f425af597be5",
+      "addressed": [
+        "F1",
+        "F2"
+      ],
+      "required_probes": 2,
+      "turns": 2,
+      "self_check": {
+        "repro": 0,
+        "suite": 0
+      },
+      "feedback_given": true,
+      "skipped_rejected": 0
+    },
+    "decision": "pass",
+    "decision_reason": "Iteration 2: no blocking findings and all deterministic checks are green.",
+    "failure_signature": null,
+    "blocking_count": 0,
+    "started_at": 1792113964.5711324,
+    "finished_at": 1792114060.0667973,
+    "tests": {
+      "iteration": 2,
+      "commit": "cce2461c862ca5733c6ab3fb704007037d84170e",
+      "repro_passed": true,
+      "suite_passed": true,
+      "repro_summary": "1 passed in 0.06s",
+      "suite_summary": "18 passed in 0.14s",
+      "probes": [
+        {
+          "id": "P-03b9da5a",
+          "source": ">>> from shopcart.checkout import shipping_banner\n>>> shipping_banner(50.0)\n'Your order ships free!'",
+          "passed": true,
+          "output": "ok\n"
+        },
+        {
+          "id": "P-03b9da5a",
+          "source": ">>> from shopcart.checkout import shipping_banner\n>>> shipping_banner(50.0)\n'Your order ships free!'\n",
+          "passed": true,
+          "output": "ok\n"
+        }
+      ],
+      "probes_passed": true,
+      "security": {
+        "passed": true,
+        "findings": [],
+        "files_changed": [
+          "shopcart/checkout.py"
+        ],
+        "lines_added": 2,
+        "lines_removed": 2,
+        "scanner": "static pattern + scope rules v1"
+      },
+      "all_passed": true
+    },
+    "feedback": {
+      "items": [
+        {
+          "severity": "minor",
+          "title": "Check boundary conditions around FREE_SHIPPING_THRESHOLD in `shipping_banner`",
+          "location": {
+            "file": "shopcart/checkout.py",
+            "where": "shipping_banner",
+            "lines": []
+          },
+          "sources": [
+            "ollama-a"
+          ],
+          "corroborated": false,
+          "rules": [
+            "llm-ollama-a"
+          ],
+          "evidence_states": [
+            "unverified"
+          ],
+          "probes": [],
+          "suggestions": [
+            "Add tests to verify boundary conditions: `shipping_banner(49.99)`, `shipping_banner(50.0)`, and `shipping_banner(50.01)`."
+          ],
+          "findings": [
+            {
+              "severity": "minor",
+              "rule": "llm-ollama-a",
+              "title": "Check boundary conditions around FREE_SHIPPING_THRESHOLD in `shipping_banner`",
+              "detail": "Ensure that the function correctly handles values just below, at, and above the threshold. [unconfirmed: probe passes on current code]",
+              "file": "shopcart/checkout.py",
+              "line": null,
+              "function": "shipping_banner",
+              "evidence": "`if remaining <= 0:` ensures correct message for $50.00 orders.",
+              "suggestion": "Add tests to verify boundary conditions: `shipping_banner(49.99)`, `shipping_banner(50.0)`, and `shipping_banner(50.01)`.",
+              "probe": ">>> from shopcart.checkout import shipping_banner\n>>> shipping_banner(49.99)\n'Add $0.01 more for free shipping'\n>>> shipping_banner(50.0)\n'Your order ships free!'\n>>> shipping_banner(50.01)\n'Your order ships free!'",
+              "reviewer": "ollama-a",
+              "confirmed": false,
+              "probe_outcome": "pass",
+              "evidence_state": "unverified"
+            }
+          ],
+          "id": "F1"
+        },
+        {
+          "severity": "minor",
+          "title": "Check boundary conditions around FREE_SHIPPING_THRESHOLD in `shipping_cost`",
+          "location": {
+            "file": "shopcart/checkout.py",
+            "where": "shipping_cost",
+            "lines": []
+          },
+          "sources": [
+            "ollama-a"
+          ],
+          "corroborated": false,
+          "rules": [
+            "llm-ollama-a"
+          ],
+          "evidence_states": [
+            "unverified"
+          ],
+          "probes": [],
+          "suggestions": [
+            "Add tests to verify boundary conditions: `shipping_cost(49.99)`, `shipping_cost(50.0)`, and `shipping_cost(50.01)`."
+          ],
+          "findings": [
+            {
+              "severity": "minor",
+              "rule": "llm-ollama-a",
+              "title": "Check boundary conditions around FREE_SHIPPING_THRESHOLD in `shipping_cost`",
+              "detail": "Ensure that the function correctly handles values just below, at, and above the threshold. [unconfirmed: probe passes on current code]",
+              "file": "shopcart/checkout.py",
+              "line": null,
+              "function": "shipping_cost",
+              "evidence": "`if subtotal >= FREE_SHIPPING_THRESHOLD:` ensures correct behavior for $50.00 orders.",
+              "suggestion": "Add tests to verify boundary conditions: `shipping_cost(49.99)`, `shipping_cost(50.0)`, and `shipping_cost(50.01)`.",
+              "probe": ">>> from shopcart.checkout import shipping_cost\n>>> shipping_cost(49.99)\n4.99\n>>> shipping_cost(50.0)\n0.0\n>>> shipping_cost(50.01)\n0.0",
+              "reviewer": "ollama-a",
+              "confirmed": false,
+              "probe_outcome": "pass",
+              "evidence_state": "unverified"
+            }
+          ],
+          "id": "F2"
+        }
+      ],
+      "blocking_count": 0,
+      "unresolved_count": 0,
+      "signature": null,
+      "checks": [
+        {
+          "reviewer": "ollama-a",
+          "function": "shipping_cost",
+          "call": "shipping_cost(49.99)",
+          "expected": "4.99",
+          "rule": "Orders below $50.00 should incur a shipping fee.",
+          "valid": true,
+          "probe": ">>> from shopcart.checkout import shipping_cost\n>>> shipping_cost(49.99)\n4.99\n",
+          "file": "shopcart/checkout.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "shipping_cost(49.99)",
+            "4.99"
+          ],
+          "conflicting": false,
+          "corroborated_by": [],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-a",
+          "function": "shipping_cost",
+          "call": "shipping_cost(50.0)",
+          "expected": "0.0",
+          "rule": "Orders of exactly $50.00 should ship free.",
+          "valid": true,
+          "probe": ">>> from shopcart.checkout import shipping_cost\n>>> shipping_cost(50.0)\n0.0\n",
+          "file": "shopcart/checkout.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "shipping_cost(50.0)",
+            "0.0"
+          ],
+          "conflicting": false,
+          "corroborated_by": [
+            "ollama-b"
+          ],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-a",
+          "function": "shipping_cost",
+          "call": "shipping_cost(50.01)",
+          "expected": "0.0",
+          "rule": "Orders above $50.00 should ship free.",
+          "valid": true,
+          "probe": ">>> from shopcart.checkout import shipping_cost\n>>> shipping_cost(50.01)\n0.0\n",
+          "file": "shopcart/checkout.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "shipping_cost(50.01)",
+            "0.0"
+          ],
+          "conflicting": false,
+          "corroborated_by": [],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-a",
+          "function": "shipping_banner",
+          "call": "shipping_banner(49.99)",
+          "expected": "'Add $0.01 more for free shipping'",
+          "rule": "Banner should indicate how much more is needed to qualify for free shipping.",
+          "valid": true,
+          "probe": ">>> from shopcart.checkout import shipping_banner\n>>> shipping_banner(49.99)\n'Add $0.01 more for free shipping'\n",
+          "file": "shopcart/checkout.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "shipping_banner(49.99)",
+            "'Add $0.01 more for free shipping'"
+          ],
+          "conflicting": false,
+          "corroborated_by": [],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-a",
+          "function": "shipping_banner",
+          "call": "shipping_banner(50.0)",
+          "expected": "'Your order ships free!'",
+          "rule": "Banner should confirm free shipping for orders of $50.00 or more.",
+          "valid": true,
+          "probe": ">>> from shopcart.checkout import shipping_banner\n>>> shipping_banner(50.0)\n'Your order ships free!'\n",
+          "file": "shopcart/checkout.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "shipping_banner(50.0)",
+            "'Your order ships free!'"
+          ],
+          "conflicting": false,
+          "corroborated_by": [
+            "ollama-b"
+          ],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-a",
+          "function": "shipping_banner",
+          "call": "shipping_banner(50.01)",
+          "expected": "'Your order ships free!'",
+          "rule": "Banner should confirm free shipping for orders above $50.00.",
+          "valid": true,
+          "probe": ">>> from shopcart.checkout import shipping_banner\n>>> shipping_banner(50.01)\n'Your order ships free!'\n",
+          "file": "shopcart/checkout.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "shipping_banner(50.01)",
+            "'Your order ships free!'"
+          ],
+          "conflicting": false,
+          "corroborated_by": [],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-b",
+          "function": "shipping_cost",
+          "call": "shipping_cost(50.0)",
+          "expected": "0.0",
+          "rule": "Orders of $50.00 or more ship free.",
+          "valid": true,
+          "probe": ">>> from shopcart.checkout import shipping_cost\n>>> shipping_cost(50.0)\n0.0\n",
+          "file": "shopcart/checkout.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "shipping_cost(50.0)",
+            "0.0"
+          ],
+          "conflicting": false,
+          "corroborated_by": [
+            "ollama-a"
+          ],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-b",
+          "function": "shipping_cost",
+          "call": "shipping_cost(49.999)",
+          "expected": "4.99",
+          "rule": "Orders below $50.00 are charged the flat fee.",
+          "valid": true,
+          "probe": ">>> from shopcart.checkout import shipping_cost\n>>> shipping_cost(49.999)\n4.99\n",
+          "file": "shopcart/checkout.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "shipping_cost(49.999)",
+            "4.99"
+          ],
+          "conflicting": false,
+          "corroborated_by": [],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-b",
+          "function": "shipping_cost",
+          "call": "shipping_cost(50.001)",
+          "expected": "0.0",
+          "rule": "Orders above $50.00 ship free.",
+          "valid": true,
+          "probe": ">>> from shopcart.checkout import shipping_cost\n>>> shipping_cost(50.001)\n0.0\n",
+          "file": "shopcart/checkout.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "shipping_cost(50.001)",
+            "0.0"
+          ],
+          "conflicting": false,
+          "corroborated_by": [],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-b",
+          "function": "shipping_banner",
+          "call": "shipping_banner(50.0)",
+          "expected": "'Your order ships free!'",
+          "rule": "Exactly $50.00 should show the free shipping message.",
+          "valid": true,
+          "probe": ">>> from shopcart.checkout import shipping_banner\n>>> shipping_banner(50.0)\n'Your order ships free!'\n",
+          "file": "shopcart/checkout.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "shipping_banner(50.0)",
+            "'Your order ships free!'"
+          ],
+          "conflicting": false,
+          "corroborated_by": [
+            "ollama-a"
+          ],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-b",
+          "function": "shipping_banner",
+          "call": "shipping_banner(49.999)",
+          "expected": "'Add $0.00 more for free shipping'",
+          "rule": "Values just below $50.00 show the correct add message (rounded to two decimals).",
+          "valid": true,
+          "probe": ">>> from shopcart.checkout import shipping_banner\n>>> shipping_banner(49.999)\n'Add $0.00 more for free shipping'\n",
+          "file": "shopcart/checkout.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "shipping_banner(49.999)",
+            "'Add $0.00 more for free shipping'"
+          ],
+          "conflicting": false,
+          "corroborated_by": [],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-b",
+          "function": "shipping_banner",
+          "call": "shipping_banner(50.001)",
+          "expected": "'Your order ships free!'",
+          "rule": "Values just above $50.00 show the free shipping message.",
+          "valid": true,
+          "probe": ">>> from shopcart.checkout import shipping_banner\n>>> shipping_banner(50.001)\n'Your order ships free!'\n",
+          "file": "shopcart/checkout.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "shipping_banner(50.001)",
+            "'Your order ships free!'"
+          ],
+          "conflicting": false,
+          "corroborated_by": [],
+          "evidence_state": "passed"
+        }
+      ],
+      "inspected_reviews": {
+        "ollama-a": "6 valid check(s) executed",
+        "ollama-b": "6 valid check(s) executed"
+      },
+      "strategy": "build_on_previous",
+      "probes": [],
+      "focus": {
+        "lines": {
+          "shopcart/checkout.py": []
+        },
+        "functions": [
+          "shipping_banner",
+          "shipping_cost"
+        ]
+      }
+    },
+    "llm_call_ids": [
+      21,
+      22,
+      23,
+      24
+    ],
+    "tool_calls": [
+      {
+        "id": 11,
+        "workflow_id": 4,
+        "iteration": 2,
+        "step": "coding",
+        "role": "coding",
+        "llm_call_id": 21,
+        "tool": "run_tests",
+        "args": {},
+        "ok": true,
+        "result": "reproduction test: exit 0\n.                                                                        [100%]\n1 passed in 0.06s\n\nfull suite: exit 0\n..................                                                       [100%]\n18 passed in 0.14s\n",
+        "seconds": 2.236,
+        "created_at": 1792113975.504474
+      },
+      {
+        "id": 12,
+        "workflow_id": 4,
+        "iteration": 2,
+        "step": "coding",
+        "role": "coding",
+        "llm_call_id": 22,
+        "tool": "submit",
+        "args": {
+          "edits": 1,
+          "summary": "Fixed shipping banner to correctly display 'Your order ships free!' for exactly $50.00.",
+          "fingerprint": "f7d3fa975c525136"
+        },
+        "ok": true,
+        "result": "applied 1 edit(s); reproduction test exit 0, suite exit 0",
+        "seconds": 2.148,
+        "created_at": 1792113979.0759168
+      }
+    ]
+  }
+]

@@ -1,0 +1,197 @@
+{
+  "system_factory": {
+    "version": "0.1.0",
+    "run": {
+      "system_factory_version": "0.1.0",
+      "source_revision": "7f6a5b2967a239c7611d210dfb75a9df2a01f0ce",
+      "source_dirty": false,
+      "source_modified_files": [],
+      "recorded_at": 1792113880.195985
+    },
+    "export": {
+      "source_revision": "7f6a5b2967a239c7611d210dfb75a9df2a01f0ce",
+      "source_dirty": false
+    }
+  },
+  "target_repository": {
+    "note": "SHAs of the generated demo repository under <DATA_DIR>/repos; run-local identifiers, not System Factory commits",
+    "base_commit": "9538aec9ecd9fe940fb033954b4f95a5104ee72e",
+    "final_commit": "cce2461c862ca5733c6ab3fb704007037d84170e",
+    "branch": "sf/wf-4"
+  },
+  "exported_at": "2026-10-16T03:31:00+0200",
+  "environment": {
+    "python": "3.13.12",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "gpu": "NVIDIA GeForce RTX 5080, 16303 MiB, 617.14",
+    "ollama": {
+      "url": "http://127.0.0.1:11434",
+      "reachable": true,
+      "version": "0.30.8"
+    }
+  },
+  "workflow": {
+    "id": 4,
+    "issue_id": 4,
+    "title": "Customers with exactly $50.00 are charged shipping",
+    "source": "sample:checkout",
+    "kind": "bug",
+    "state": "approved",
+    "runtime": "ollama",
+    "options": {
+      "runtime": "ollama",
+      "coder": "ollama",
+      "reviewers": [
+        "ollama-a",
+        "ollama-b"
+      ],
+      "allow_simulated_reviewers": false,
+      "ollama_url": "http://127.0.0.1:11434",
+      "execution": "docker",
+      "require_isolation": true,
+      "models": {
+        "coder": "qwen2.5-coder:14b",
+        "reviewer_a": "phi4:14b",
+        "reviewer_b": "qwen3:14b"
+      }
+    },
+    "budget": {
+      "max_wall_seconds": 900,
+      "max_candidate_evals": 400,
+      "max_test_runs": 800,
+      "max_iterations": 4,
+      "max_loop_seconds": 600,
+      "max_llm_tokens": 600000,
+      "max_cost_usd": 1.0,
+      "stall_window": 2
+    },
+    "usage": {
+      "candidate_evals": 0,
+      "test_runs": 48,
+      "llm_tokens": 19790,
+      "cost_usd": 0.0
+    },
+    "branch": "sf/wf-4",
+    "base_commit": "9538aec9ecd9fe940fb033954b4f95a5104ee72e",
+    "final_commit": "cce2461c862ca5733c6ab3fb704007037d84170e",
+    "created_at": 1792113880.1238573,
+    "started_at": 1792113880.2065287,
+    "finished_at": 1792114064.1887016
+  },
+  "execution_modes": [
+    "real-local"
+  ],
+  "models": {
+    "qwen2.5-coder:14b": {
+      "provider": "ollama",
+      "execution": "real-local",
+      "digest": "9ec8897f747e246e970bc5cfdda85d22f1123dc2e3d34978a010a75968716849",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "qwen2",
+        "families": [
+          "qwen2"
+        ],
+        "parameter_size": "14.8B",
+        "quantization_level": "Q4_K_M",
+        "context_length": 32768,
+        "embedding_length": 5120
+      },
+      "roles": [
+        "coding"
+      ],
+      "calls": 4,
+      "ok": 4,
+      "input_tokens": 6583,
+      "output_tokens": 165,
+      "runtime_seconds": 18.2681235
+    },
+    "phi4:14b": {
+      "provider": "ollama",
+      "execution": "real-local",
+      "digest": "ac896e5b8b34a1f4efa7b14d7520725140d5512484457fab45d2a4ea14c69dba",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "phi3",
+        "families": [
+          "phi3"
+        ],
+        "parameter_size": "14.7B",
+        "quantization_level": "Q4_K_M",
+        "context_length": 16384,
+        "embedding_length": 5120
+      },
+      "roles": [
+        "ollama-a"
+      ],
+      "calls": 2,
+      "ok": 2,
+      "input_tokens": 3167,
+      "output_tokens": 1590,
+      "runtime_seconds": 33.9080259
+    },
+    "qwen3:14b": {
+      "provider": "ollama",
+      "execution": "real-local",
+      "digest": "bdbd181c33f2ed1b31c972991882db3cf4d192569092138a7d29e973cd9debe8",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "qwen3",
+        "families": [
+          "qwen3"
+        ],
+        "parameter_size": "14.8B",
+        "quantization_level": "Q4_K_M",
+        "context_length": 40960,
+        "embedding_length": 5120
+      },
+      "roles": [
+        "ollama-b"
+      ],
+      "calls": 2,
+      "ok": 2,
+      "input_tokens": 7022,
+      "output_tokens": 1263,
+      "runtime_seconds": 76.7489265
+    }
+  },
+  "reviewer_diversity": {
+    "reviewers": 2,
+    "real_model_reviewers": 2,
+    "real_providers": [
+      "ollama"
+    ],
+    "real_models": [
+      "phi4:14b",
+      "qwen3:14b"
+    ],
+    "real_provider_diversity": false,
+    "label": "REAL local inference: 2 reviewers, 2 different models (phi4:14b, qwen3:14b) on ONE provider (ollama); not multi-provider"
+  },
+  "iterations": 2,
+  "termination_reason": "approved by a human after quality gate SUCCESS",
+  "quality_gate": "SUCCESS",
+  "totals": {
+    "llm_calls": 8,
+    "llm_calls_ok": 8,
+    "llm_calls_failed": 0,
+    "input_tokens": 16772,
+    "output_tokens": 3018,
+    "inference_seconds": 131.62,
+    "tool_calls": 4,
+    "test_runs": 16,
+    "automation_seconds": 183.98
+  },
+  "reproduce": [
+    "python -m systemfactory init-demo",
+    "python -m systemfactory submit --sample checkout --runtime ollama",
+    "python -m systemfactory run",
+    "python -m systemfactory show 4",
+    "python -m systemfactory export 4",
+    "git -C <DATA_DIR>/repos/shopcart log --oneline 9538aec9ec..sf/wf-4"
+  ],
+  "honesty": "Token counts are copied from the runtime's responses; nothing is estimated. Simulated components are labelled 'simulated'. Different models on one runtime are one provider."
+}

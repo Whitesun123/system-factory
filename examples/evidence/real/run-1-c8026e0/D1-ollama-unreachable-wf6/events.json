@@ -1,0 +1,269 @@
+[
+  {
+    "id": 232,
+    "workflow_id": 6,
+    "ts": 1792112926.9095552,
+    "level": "info",
+    "step": null,
+    "actor": "intake",
+    "message": "Issue #6 received from sample:bulk: Bulk discount not applied when ordering exactly 10 units",
+    "data": {}
+  },
+  {
+    "id": 233,
+    "workflow_id": 6,
+    "ts": 1792112926.9808407,
+    "level": "info",
+    "step": null,
+    "actor": "orchestrator",
+    "message": "State queued -> running: claimed by worker-32572-5daab1",
+    "data": {
+      "from": "queued",
+      "to": "running"
+    }
+  },
+  {
+    "id": 234,
+    "workflow_id": 6,
+    "ts": 1792112927.0015728,
+    "level": "info",
+    "step": "triage",
+    "actor": "orchestrator",
+    "message": "Step 'triage' started (role: triage, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 235,
+    "workflow_id": 6,
+    "ts": 1792112927.0572088,
+    "level": "info",
+    "step": "triage",
+    "actor": "triage",
+    "message": "Classified as bug (severity medium, confidence 1.0)",
+    "data": {
+      "scores": {
+        "bug": 5,
+        "feature": 0,
+        "support": 0
+      }
+    }
+  },
+  {
+    "id": 236,
+    "workflow_id": 6,
+    "ts": 1792112927.083437,
+    "level": "info",
+    "step": "triage",
+    "actor": "orchestrator",
+    "message": "Step 'triage' succeeded on attempt 1 in 0.07s",
+    "data": {}
+  },
+  {
+    "id": 237,
+    "workflow_id": 6,
+    "ts": 1792112927.0993142,
+    "level": "info",
+    "step": null,
+    "actor": "orchestrator",
+    "message": "Pipeline for bug: triage -> requirements -> plan -> workspace -> reproduce -> coding -> testing -> review -> feedback -> quality_gate -> approval",
+    "data": {}
+  },
+  {
+    "id": 238,
+    "workflow_id": 6,
+    "ts": 1792112927.127549,
+    "level": "info",
+    "step": "requirements",
+    "actor": "orchestrator",
+    "message": "Step 'requirements' started (role: requirements, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 239,
+    "workflow_id": 6,
+    "ts": 1792112927.190631,
+    "level": "info",
+    "step": "requirements",
+    "actor": "orchestrator",
+    "message": "Step 'requirements' succeeded on attempt 1 in 0.05s",
+    "data": {}
+  },
+  {
+    "id": 240,
+    "workflow_id": 6,
+    "ts": 1792112927.2218125,
+    "level": "info",
+    "step": "plan",
+    "actor": "orchestrator",
+    "message": "Step 'plan' started (role: architecture, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 241,
+    "workflow_id": 6,
+    "ts": 1792112927.2731562,
+    "level": "info",
+    "step": "plan",
+    "actor": "orchestrator",
+    "message": "Step 'plan' succeeded on attempt 1 in 0.03s",
+    "data": {}
+  },
+  {
+    "id": 242,
+    "workflow_id": 6,
+    "ts": 1792112927.2954571,
+    "level": "info",
+    "step": "workspace",
+    "actor": "orchestrator",
+    "message": "Step 'workspace' started (role: infra, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 243,
+    "workflow_id": 6,
+    "ts": 1792112927.5848432,
+    "level": "info",
+    "step": "workspace",
+    "actor": "infra",
+    "message": "Worktree ready at <DATA_DIR>\\worktrees\\wf-6 on sf/wf-6 (base 9538aec9ec)",
+    "data": {}
+  },
+  {
+    "id": 244,
+    "workflow_id": 6,
+    "ts": 1792112927.6115196,
+    "level": "info",
+    "step": "workspace",
+    "actor": "orchestrator",
+    "message": "Step 'workspace' succeeded on attempt 1 in 0.30s",
+    "data": {}
+  },
+  {
+    "id": 245,
+    "workflow_id": 6,
+    "ts": 1792112927.6337929,
+    "level": "info",
+    "step": "reproduce",
+    "actor": "orchestrator",
+    "message": "Step 'reproduce' started (role: qa, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 246,
+    "workflow_id": 6,
+    "ts": 1792112929.873502,
+    "level": "info",
+    "step": "reproduce",
+    "actor": "qa",
+    "message": "Reproduced: tests/test_issue_6.py fails on base; committed 641fae50dc",
+    "data": {}
+  },
+  {
+    "id": 247,
+    "workflow_id": 6,
+    "ts": 1792112929.9006956,
+    "level": "info",
+    "step": "reproduce",
+    "actor": "orchestrator",
+    "message": "Step 'reproduce' succeeded on attempt 1 in 2.25s",
+    "data": {}
+  },
+  {
+    "id": 248,
+    "workflow_id": 6,
+    "ts": 1792112929.9239342,
+    "level": "info",
+    "step": "coding",
+    "actor": "orchestrator",
+    "message": "Step 'coding' started (role: coding, up to 3 attempts)",
+    "data": {}
+  },
+  {
+    "id": 249,
+    "workflow_id": 6,
+    "ts": 1792112929.9487195,
+    "level": "info",
+    "step": "coding",
+    "actor": "orchestrator",
+    "message": "Iteration 1 started",
+    "data": {
+      "iteration": 1
+    }
+  },
+  {
+    "id": 250,
+    "workflow_id": 6,
+    "ts": 1792112932.3317091,
+    "level": "warning",
+    "step": "coding",
+    "actor": "orchestrator",
+    "message": "Attempt 1 failed (retryable): coder model call failed: Ollama not reachable at http://127.0.0.1:9: [WinError 10061] No connection could be made because the target machine actively refused it",
+    "data": {}
+  },
+  {
+    "id": 251,
+    "workflow_id": 6,
+    "ts": 1792112932.597149,
+    "level": "info",
+    "step": "coding",
+    "actor": "orchestrator",
+    "message": "Retrying 'coding' (attempt 2)",
+    "data": {}
+  },
+  {
+    "id": 252,
+    "workflow_id": 6,
+    "ts": 1792112934.9853473,
+    "level": "warning",
+    "step": "coding",
+    "actor": "orchestrator",
+    "message": "Attempt 2 failed (retryable): coder model call failed: Ollama not reachable at http://127.0.0.1:9: [WinError 10061] No connection could be made because the target machine actively refused it",
+    "data": {}
+  },
+  {
+    "id": 253,
+    "workflow_id": 6,
+    "ts": 1792112935.5156078,
+    "level": "info",
+    "step": "coding",
+    "actor": "orchestrator",
+    "message": "Retrying 'coding' (attempt 3)",
+    "data": {}
+  },
+  {
+    "id": 254,
+    "workflow_id": 6,
+    "ts": 1792112937.8975577,
+    "level": "warning",
+    "step": "coding",
+    "actor": "orchestrator",
+    "message": "Attempt 3 failed (retryable): coder model call failed: Ollama not reachable at http://127.0.0.1:9: [WinError 10061] No connection could be made because the target machine actively refused it",
+    "data": {}
+  },
+  {
+    "id": 255,
+    "workflow_id": 6,
+    "ts": 1792112937.9128058,
+    "level": "info",
+    "step": null,
+    "actor": "orchestrator",
+    "message": "Iteration 1: coding -> failed",
+    "data": {
+      "iteration": 1,
+      "to": "failed"
+    }
+  },
+  {
+    "id": 256,
+    "workflow_id": 6,
+    "ts": 1792112937.9196754,
+    "level": "info",
+    "step": null,
+    "actor": "orchestrator",
+    "message": "State running -> failed: coding: retries exhausted after 3 attempts; last error: coder model call failed: Ollama not reachable at http://127.0.0.1:9: [WinError 10061] No connection could be made because the target machine actively refused it",
+    "data": {
+      "from": "running",
+      "to": "failed"
+    }
+  }
+]

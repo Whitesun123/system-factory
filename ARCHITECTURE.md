@@ -94,15 +94,17 @@ coding → testing → reviewing → aggregating → revise | passed | stalled |
 
 | State | Meaning | Effect |
 |---|---|---|
-| confirmed | executed failure whose expected value is grounded in an authoritative requirement (issue, acceptance criteria, docstrings, README: exact quoted value or ≥50% content-word match) or corroborated by a second reviewer's identical expectation | blocking |
-| unsupported | executed failure, expectation not traceable to any requirement | unresolved |
+| confirmed | executed failure (wrong result, exception raised in the code under test, or killed by the time/memory limits) whose expected value is grounded in an authoritative requirement (issue, acceptance criteria, docstrings **as they were before the patch**, README: exact quoted value or ≥50% content-word match) or corroborated by a second reviewer's identical expectation | blocking |
+| unsupported | executed failure, expectation not traceable to any requirement, or ambiguous (the expected value equals the message of the exception the code raised) | unresolved |
 | conflicting | reviewers expect different results for the same call | unresolved |
-| unverified | model claim without an executable probe, or a probe that passes or is itself broken (`NameError`, `ImportError`, …) | downgraded to major |
-| invalid | check rejected by validation (non-literal arguments, ambiguous function, unsafe probe) | recorded only |
+| unverified | model claim without an executable probe, or a probe that passes or is itself broken (`NameError`, `ImportError`, a wrong signature… raised in the probe's own frame, not in the code under test) | downgraded to major |
+| invalid | check rejected by validation (non-literal arguments, a function outside the changed files, ambiguous name, control characters from a mis-escaped string, unsafe probe) | recorded only |
 | passed | executed and passing | recorded only |
 
-A review counts as an *inspection* only if it did observable work on the change (valid executed checks on changed
-functions, located findings, or a deterministic technique).
+A review counts as an *inspection* only if it did observable work on the change: a valid check on a changed
+function that produced a result (pass or failure; a broken probe does not count), a finding located in a changed file
+or function, or a deterministic technique. An expected exception (`ValueError('msg')`, `raises X`, a traceback) is
+encoded as a doctest exception expectation, so a correct `raise` passes.
 
 **Decision rules** (`loop.assess_progress`, applied in this order):
 

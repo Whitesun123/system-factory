@@ -1,0 +1,24 @@
+[
+  {
+    "n": 1,
+    "status": "failed",
+    "base": null,
+    "commit": null,
+    "fingerprint": null,
+    "patch": {},
+    "decision": "failed",
+    "decision_reason": "coding: retries exhausted after 3 attempts; last error: coder model call failed: model 'qwen2.5-coder:14b' did not finish within 1s",
+    "failure_signature": null,
+    "blocking_count": null,
+    "started_at": 1792114238.8847046,
+    "finished_at": 1792114244.2683017,
+    "tests": {},
+    "feedback": {},
+    "llm_call_ids": [
+      36,
+      37,
+      38
+    ],
+    "tool_calls": []
+  }
+]

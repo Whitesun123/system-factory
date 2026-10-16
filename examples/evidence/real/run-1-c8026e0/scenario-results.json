@@ -1,0 +1,275 @@
+[
+  {
+    "scenario": "A1-real-fix",
+    "workflow": 1,
+    "sample": "bulk",
+    "state": "awaiting_approval",
+    "error": null,
+    "iterations": 1,
+    "iteration_decisions": [
+      "pass"
+    ],
+    "quality_gate": "SUCCESS",
+    "spec_satisfied_by_oracle": true,
+    "seconds": 71.4,
+    "llm_calls": 4,
+    "llm_calls_failed": 0,
+    "tokens_in": 7346,
+    "tokens_out": 1218,
+    "models": [
+      "phi4:14b",
+      "qwen2.5-coder:14b",
+      "qwen3:14b"
+    ],
+    "backends": [
+      "docker (container)"
+    ],
+    "evidence": "A1-real-fix-wf1",
+    "final_state": "approved"
+  },
+  {
+    "scenario": "A2-real-fix",
+    "workflow": 2,
+    "sample": "bulk",
+    "state": "awaiting_approval",
+    "error": null,
+    "iterations": 1,
+    "iteration_decisions": [
+      "pass"
+    ],
+    "quality_gate": "SUCCESS",
+    "spec_satisfied_by_oracle": true,
+    "seconds": 70.3,
+    "llm_calls": 4,
+    "llm_calls_failed": 0,
+    "tokens_in": 7261,
+    "tokens_out": 1174,
+    "models": [
+      "phi4:14b",
+      "qwen2.5-coder:14b",
+      "qwen3:14b"
+    ],
+    "backends": [
+      "docker (container)"
+    ],
+    "evidence": "A2-real-fix-wf2",
+    "final_state": "approved"
+  },
+  {
+    "scenario": "B1-revision-after-review",
+    "workflow": 3,
+    "sample": "checkout",
+    "state": "awaiting_approval",
+    "error": null,
+    "iterations": 2,
+    "iteration_decisions": [
+      "revise",
+      "pass"
+    ],
+    "quality_gate": "SUCCESS",
+    "spec_satisfied_by_oracle": true,
+    "seconds": 161.3,
+    "llm_calls": 8,
+    "llm_calls_failed": 0,
+    "tokens_in": 15818,
+    "tokens_out": 3009,
+    "models": [
+      "phi4:14b",
+      "qwen2.5-coder:14b",
+      "qwen3:14b"
+    ],
+    "backends": [
+      "docker (container)"
+    ],
+    "evidence": "B1-revision-after-review-wf3",
+    "final_state": "approved"
+  },
+  {
+    "scenario": "B2-revision-after-review",
+    "workflow": 4,
+    "sample": "checkout",
+    "state": "awaiting_approval",
+    "error": null,
+    "iterations": 2,
+    "iteration_decisions": [
+      "revise",
+      "pass"
+    ],
+    "quality_gate": "SUCCESS",
+    "spec_satisfied_by_oracle": true,
+    "seconds": 160.9,
+    "llm_calls": 8,
+    "llm_calls_failed": 0,
+    "tokens_in": 15171,
+    "tokens_out": 3190,
+    "models": [
+      "phi4:14b",
+      "qwen2.5-coder:14b",
+      "qwen3:14b"
+    ],
+    "backends": [
+      "docker (container)"
+    ],
+    "evidence": "B2-revision-after-review-wf4",
+    "final_state": "approved"
+  },
+  {
+    "scenario": "C-feedback-withheld-stall",
+    "workflow": 5,
+    "sample": "checkout",
+    "state": "blocked",
+    "error": "Escalated to a human after iteration 2: Repeated solution: iteration 2 produced the same patch as iteration 1 (fingerprint ec67817129).",
+    "iterations": 2,
+    "iteration_decisions": [
+      "revise",
+      "stalled"
+    ],
+    "quality_gate": null,
+    "spec_satisfied_by_oracle": false,
+    "seconds": 164.5,
+    "llm_calls": 8,
+    "llm_calls_failed": 0,
+    "tokens_in": 14373,
+    "tokens_out": 3048,
+    "models": [
+      "phi4:14b",
+      "qwen2.5-coder:14b",
+      "qwen3:14b"
+    ],
+    "backends": [
+      "docker (container)"
+    ],
+    "evidence": "C-feedback-withheld-stall-wf5",
+    "final_state": "blocked"
+  },
+  {
+    "scenario": "D1-ollama-unreachable",
+    "workflow": 6,
+    "sample": "bulk",
+    "state": "failed",
+    "error": "coding: retries exhausted after 3 attempts; last error: coder model call failed: Ollama not reachable at http://127.0.0.1:9: [WinError 10061] No connection could be made because the target machine actively refused it",
+    "iterations": 1,
+    "iteration_decisions": [
+      "failed"
+    ],
+    "quality_gate": null,
+    "spec_satisfied_by_oracle": false,
+    "seconds": 11.1,
+    "llm_calls": 3,
+    "llm_calls_failed": 3,
+    "tokens_in": 0,
+    "tokens_out": 0,
+    "models": [
+      "qwen2.5-coder:14b"
+    ],
+    "backends": [
+      "docker (container)"
+    ],
+    "evidence": "D1-ollama-unreachable-wf6",
+    "final_state": "failed"
+  },
+  {
+    "scenario": "D2-model-timeout",
+    "workflow": 7,
+    "sample": "bulk",
+    "state": "failed",
+    "error": "coding: retries exhausted after 3 attempts; last error: coder model call failed: model 'qwen2.5-coder:14b' did not finish within 1s",
+    "iterations": 1,
+    "iteration_decisions": [
+      "failed"
+    ],
+    "quality_gate": null,
+    "spec_satisfied_by_oracle": false,
+    "seconds": 8.8,
+    "llm_calls": 3,
+    "llm_calls_failed": 3,
+    "tokens_in": 0,
+    "tokens_out": 0,
+    "models": [
+      "qwen2.5-coder:14b"
+    ],
+    "backends": [
+      "docker (container)"
+    ],
+    "evidence": "D2-model-timeout-wf7",
+    "final_state": "failed"
+  },
+  {
+    "scenario": "D3-cancel-during-coding",
+    "workflow": 8,
+    "sample": "bulk",
+    "state": "cancelled",
+    "error": null,
+    "iterations": 1,
+    "iteration_decisions": [
+      "cancelled"
+    ],
+    "quality_gate": null,
+    "spec_satisfied_by_oracle": false,
+    "seconds": 12.8,
+    "llm_calls": 1,
+    "llm_calls_failed": 0,
+    "tokens_in": 1429,
+    "tokens_out": 8,
+    "models": [
+      "qwen2.5-coder:14b"
+    ],
+    "backends": [
+      "docker (container)"
+    ],
+    "evidence": "D3-cancel-during-coding-wf8",
+    "final_state": "cancelled"
+  },
+  {
+    "scenario": "E-approval-guard",
+    "attempts": [
+      {
+        "workflow": 1,
+        "state_before": "awaiting_approval",
+        "approved": true
+      },
+      {
+        "workflow": 2,
+        "state_before": "awaiting_approval",
+        "approved": true
+      },
+      {
+        "workflow": 3,
+        "state_before": "awaiting_approval",
+        "approved": true
+      },
+      {
+        "workflow": 4,
+        "state_before": "awaiting_approval",
+        "approved": true
+      },
+      {
+        "workflow": 5,
+        "state_before": "blocked",
+        "approved": false,
+        "refusal": "workflow 5 is blocked, not awaiting approval"
+      },
+      {
+        "workflow": 6,
+        "state_before": "failed",
+        "approved": false,
+        "refusal": "workflow 6 is failed, not awaiting approval"
+      },
+      {
+        "workflow": 7,
+        "state_before": "failed",
+        "approved": false,
+        "refusal": "workflow 7 is failed, not awaiting approval"
+      },
+      {
+        "workflow": 8,
+        "state_before": "cancelled",
+        "approved": false,
+        "refusal": "workflow 8 is cancelled, not awaiting approval"
+      }
+    ],
+    "approved_only_after_gate_success": true,
+    "demo_main_unchanged": true,
+    "main": "9538aec9ecd9fe940fb033954b4f95a5104ee72e"
+  }
+]

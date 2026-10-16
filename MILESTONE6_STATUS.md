@@ -120,3 +120,33 @@ Findings and fixes (regression tests in `tests/test_review_findings.py`):
 
 The review confirmed as sound: the Docker flags and fail-closed backend, no bypass of `run_python`, no label leakage,
 no silent simulation in the real runtime, the gate checks, and dashboard escaping.
+
+## M6.4: Real end-to-end validation (run twice on clean clones)
+
+`scripts/real_demo.py --scenarios A,B,C,D,E --repeat 2`, from clean clones of `c8026e0` and of `7f6a5b2` (the final
+pipeline code). Coder `qwen2.5-coder:14b`; reviewers `phi4:14b` and `qwen3:14b`; one provider; Docker sandbox.
+
+| Scenario | Run 1 (`c8026e0`) | Run 2 (`7f6a5b2`) |
+|---|---|---|
+| A1/A2 real fix | pass in 1 iteration, gate SUCCESS, oracle satisfied (71 s, 70 s) | same (68 s, 79 s) |
+| B1/B2 revision after review | revise then pass, gate SUCCESS, oracle satisfied (161 s, 161 s) | same (163 s, 184 s) |
+| C feedback withheld | stalled: same fingerprint `ec67817129`, escalated | same |
+| D1 unreachable / D2 1 s timeout / D3 cancel | failed (3 failed calls) / failed / cancelled | same |
+| E approval guard | 4 approved (all gate SUCCESS), 4 refused; `main` unchanged | same |
+
+An earlier attempt on `ac0784f` was **stopped after A1**. A1 had produced a correct patch (oracle satisfied), but it
+was escalated because Reviewer B's checks were rejected over the function-name format (M6.3, defect 3). Those
+packages are not published. These are repeated observations at temperature 0 with fixed seeds on two synthetic
+bugs; they show reproducibility under fixed sampling, not an automation rate.
+
+## M6.6: Dashboard and documentation
+
+- Loop flow from recorded step and iteration state, budget bars, an iteration comparison (finding, required probe,
+  result, side-by-side patches), evidence-state chips, an execution-backend badge, ARIA tabs and progress bars, and
+  a responsive layout. Checked at 1440, 1000 and 768 px. A media-query ordering bug that broke the single-column
+  tablet layout was fixed.
+- Screenshots `docs/screenshots/04`-`08` were captured with headless Edge (fresh profile) from the recorded run-2
+  workflows. No paths are shown (the worktree displays as `<data>/...`).
+- README rewritten (problem, loop, control plane vs roles, real vs simulated, sandbox, measured evaluation, real
+  scenarios, case study, limitations, roadmap); DEMO, PRESENTATION and ARCHITECTURE updated; D21-D23 added.
+- **License: not added.** It waits for the owner's choice.

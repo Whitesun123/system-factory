@@ -1,0 +1,22 @@
+[
+  {
+    "n": 1,
+    "status": "cancelled",
+    "base": null,
+    "commit": null,
+    "fingerprint": null,
+    "patch": {},
+    "decision": "cancelled",
+    "decision_reason": "cancelled by request",
+    "failure_signature": null,
+    "blocking_count": null,
+    "started_at": 1792112953.7596514,
+    "finished_at": 1792112962.4420483,
+    "tests": {},
+    "feedback": {},
+    "llm_call_ids": [
+      39
+    ],
+    "tool_calls": []
+  }
+]

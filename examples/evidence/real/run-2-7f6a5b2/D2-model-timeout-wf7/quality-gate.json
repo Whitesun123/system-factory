@@ -1,0 +1,9 @@
+{
+  "status": "FAILED",
+  "gate": null,
+  "gate_report": null,
+  "escalation": null,
+  "approvals": [],
+  "final_state": "failed",
+  "termination_reason": "coding: retries exhausted after 3 attempts; last error: coder model call failed: model 'qwen2.5-coder:14b' did not finish within 1s"
+}

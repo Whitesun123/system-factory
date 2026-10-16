@@ -83,9 +83,17 @@ keys and approval.
 
 ## Screenshots
 
-Real captures of the dashboard serving recorded runs (no mock data):
+Real captures of the dashboard serving recorded workflows from the final-code real run (`examples/evidence/real/run-2-7f6a5b2`):
 
-<!-- SCREENSHOTS -->
+![Real review loop: iteration 1 blocked by a confirmed check, iteration 2 passes, gate SUCCESS, approved](docs/screenshots/04-real-review-loop.png)
+
+| | |
+|---|---|
+| ![Iteration comparison: finding F1 traced to its required probe, side-by-side patches](docs/screenshots/05-real-iteration-compare.png) | ![Real stall: feedback withheld, same patch twice, escalated](docs/screenshots/06-real-stall-escalation.png) |
+| ![Every model call with model, digest, tokens reported by Ollama and timing; coder tool calls; test commands](docs/screenshots/07-real-agents-model-calls.png) | ![Tablet width (768 px)](docs/screenshots/08-real-review-loop-tablet.png) |
+
+Deterministic-runtime captures: [01](docs/screenshots/01-iterations-review-loop.png), [02](docs/screenshots/02-stall-escalation.png),
+[03](docs/screenshots/03-agents-test-evidence.png).
 
 ## One-command demo
 
@@ -130,7 +138,25 @@ python -m systemfactory run
 real-runtime workflow is **blocked before anything executes**. The scripted real scenarios (`scripts/real_demo.py`)
 check each result against an oracle the agents never see.
 
-<!-- REAL-RESULTS -->
+### Real scenarios (measured)
+
+`scripts/real_demo.py --repeat 2` ran twice from clean clones: once on `c8026e0` and once on the final pipeline code
+`7f6a5b2` (after the independent-review fixes). Coder `qwen2.5-coder:14b`, reviewers `phi4:14b` and `qwen3:14b`, one
+provider, every test and check in the Docker sandbox. Results were checked against hidden oracles.
+
+| Scenario | What it tests | Result (both runs) |
+|---|---|---|
+| A real fix (bulk discount), ×2 per run | real coder + two real reviewers | 4/4 passed in 1 iteration, gate SUCCESS, oracle satisfied; 68–79 s |
+| **B revision after review** (free shipping), ×2 per run | the report names one defect; a related one must be found by review | **4/4: revise → pass.** Iteration 1 fixed `shipping_cost` but left `shipping_banner(50.0)` wrong; both reviewers independently proposed that check, it failed in the sandbox and was confirmed against the docstring; iteration 2 fixed it. Oracle satisfied; 161–184 s |
+| C feedback withheld (ablation) | stall detection with a real coder | 2/2 **stalled**: the same patch twice (fingerprint `ec67817129`), escalated, not approved |
+| D1 Ollama unreachable | provider failure | 2/2 failed after 3 attempts; 3 failed model calls recorded; no simulated substitute |
+| D2 model timeout (1 s) | provider timeout | 2/2 failed after 3 attempts |
+| D3 cancel during real coding | cancellation | 2/2 cancelled |
+| E approval guard | approve every workflow | only the 4 gate-SUCCESS workflows per run could be approved; the others were refused; the demo `main` branch was unchanged |
+
+These are **repeated observations at temperature 0 with fixed seeds**, on two small synthetic bugs. That shows the
+behaviour is reproducible under fixed sampling. It is not an automation rate. Evidence packages, including every
+prompt and response (sanitized): [examples/evidence/real/](examples/evidence/real/).
 
 ## Execution sandbox
 

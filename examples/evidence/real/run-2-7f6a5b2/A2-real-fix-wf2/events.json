@@ -1,0 +1,411 @@
+[
+  {
+    "id": 37,
+    "workflow_id": 2,
+    "ts": 1792113636.464302,
+    "level": "info",
+    "step": null,
+    "actor": "intake",
+    "message": "Issue #2 received from sample:bulk: Bulk discount not applied when ordering exactly 10 units",
+    "data": {}
+  },
+  {
+    "id": 38,
+    "workflow_id": 2,
+    "ts": 1792113636.540286,
+    "level": "info",
+    "step": null,
+    "actor": "orchestrator",
+    "message": "State queued -> running: claimed by worker-39060-0261f1",
+    "data": {
+      "from": "queued",
+      "to": "running"
+    }
+  },
+  {
+    "id": 39,
+    "workflow_id": 2,
+    "ts": 1792113636.574252,
+    "level": "info",
+    "step": "triage",
+    "actor": "orchestrator",
+    "message": "Step 'triage' started (role: triage, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 40,
+    "workflow_id": 2,
+    "ts": 1792113636.6320684,
+    "level": "info",
+    "step": "triage",
+    "actor": "triage",
+    "message": "Classified as bug (severity medium, confidence 1.0)",
+    "data": {
+      "scores": {
+        "bug": 5,
+        "feature": 0,
+        "support": 0
+      }
+    }
+  },
+  {
+    "id": 41,
+    "workflow_id": 2,
+    "ts": 1792113636.6703126,
+    "level": "info",
+    "step": "triage",
+    "actor": "orchestrator",
+    "message": "Step 'triage' succeeded on attempt 1 in 0.08s",
+    "data": {}
+  },
+  {
+    "id": 42,
+    "workflow_id": 2,
+    "ts": 1792113636.6861038,
+    "level": "info",
+    "step": null,
+    "actor": "orchestrator",
+    "message": "Pipeline for bug: triage -> requirements -> plan -> workspace -> reproduce -> coding -> testing -> review -> feedback -> quality_gate -> approval",
+    "data": {}
+  },
+  {
+    "id": 43,
+    "workflow_id": 2,
+    "ts": 1792113636.7093177,
+    "level": "info",
+    "step": "requirements",
+    "actor": "orchestrator",
+    "message": "Step 'requirements' started (role: requirements, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 44,
+    "workflow_id": 2,
+    "ts": 1792113636.7652187,
+    "level": "info",
+    "step": "requirements",
+    "actor": "orchestrator",
+    "message": "Step 'requirements' succeeded on attempt 1 in 0.04s",
+    "data": {}
+  },
+  {
+    "id": 45,
+    "workflow_id": 2,
+    "ts": 1792113636.790203,
+    "level": "info",
+    "step": "plan",
+    "actor": "orchestrator",
+    "message": "Step 'plan' started (role: architecture, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 46,
+    "workflow_id": 2,
+    "ts": 1792113636.8426473,
+    "level": "info",
+    "step": "plan",
+    "actor": "orchestrator",
+    "message": "Step 'plan' succeeded on attempt 1 in 0.04s",
+    "data": {}
+  },
+  {
+    "id": 47,
+    "workflow_id": 2,
+    "ts": 1792113636.863334,
+    "level": "info",
+    "step": "workspace",
+    "actor": "orchestrator",
+    "message": "Step 'workspace' started (role: infra, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 48,
+    "workflow_id": 2,
+    "ts": 1792113637.1292052,
+    "level": "info",
+    "step": "workspace",
+    "actor": "infra",
+    "message": "Worktree ready at <DATA_DIR>\\worktrees\\wf-2 on sf/wf-2 (base 9538aec9ec)",
+    "data": {}
+  },
+  {
+    "id": 49,
+    "workflow_id": 2,
+    "ts": 1792113637.159449,
+    "level": "info",
+    "step": "workspace",
+    "actor": "orchestrator",
+    "message": "Step 'workspace' succeeded on attempt 1 in 0.28s",
+    "data": {}
+  },
+  {
+    "id": 50,
+    "workflow_id": 2,
+    "ts": 1792113637.1830084,
+    "level": "info",
+    "step": "reproduce",
+    "actor": "orchestrator",
+    "message": "Step 'reproduce' started (role: qa, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 51,
+    "workflow_id": 2,
+    "ts": 1792113639.6234581,
+    "level": "info",
+    "step": "reproduce",
+    "actor": "qa",
+    "message": "Reproduced: tests/test_issue_2.py fails on base; committed a973350bda",
+    "data": {}
+  },
+  {
+    "id": 52,
+    "workflow_id": 2,
+    "ts": 1792113639.6502957,
+    "level": "info",
+    "step": "reproduce",
+    "actor": "orchestrator",
+    "message": "Step 'reproduce' succeeded on attempt 1 in 2.46s",
+    "data": {}
+  },
+  {
+    "id": 53,
+    "workflow_id": 2,
+    "ts": 1792113639.6747763,
+    "level": "info",
+    "step": "coding",
+    "actor": "orchestrator",
+    "message": "Step 'coding' started (role: coding, up to 3 attempts)",
+    "data": {}
+  },
+  {
+    "id": 54,
+    "workflow_id": 2,
+    "ts": 1792113639.7014565,
+    "level": "info",
+    "step": "coding",
+    "actor": "orchestrator",
+    "message": "Iteration 1 started",
+    "data": {
+      "iteration": 1
+    }
+  },
+  {
+    "id": 55,
+    "workflow_id": 2,
+    "ts": 1792113654.7013516,
+    "level": "info",
+    "step": "coding",
+    "actor": "coding",
+    "message": "Iteration 1: ollama/qwen2.5-coder:14b submitted a patch after 2 turn(s): Fix bulk discount calculation for exactly 10 units; committed f52bb4932c",
+    "data": {}
+  },
+  {
+    "id": 56,
+    "workflow_id": 2,
+    "ts": 1792113654.7258677,
+    "level": "info",
+    "step": "coding",
+    "actor": "orchestrator",
+    "message": "Step 'coding' succeeded on attempt 1 in 15.03s",
+    "data": {}
+  },
+  {
+    "id": 57,
+    "workflow_id": 2,
+    "ts": 1792113654.747348,
+    "level": "info",
+    "step": "testing",
+    "actor": "orchestrator",
+    "message": "Step 'testing' started (role: qa, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 58,
+    "workflow_id": 2,
+    "ts": 1792113654.7706375,
+    "level": "info",
+    "step": null,
+    "actor": "orchestrator",
+    "message": "Iteration 1: coding -> testing",
+    "data": {
+      "iteration": 1,
+      "to": "testing"
+    }
+  },
+  {
+    "id": 59,
+    "workflow_id": 2,
+    "ts": 1792113657.9849665,
+    "level": "info",
+    "step": "testing",
+    "actor": "qa",
+    "message": "Iteration 1: repro=pass suite=pass probes=0/0 security=pass",
+    "data": {}
+  },
+  {
+    "id": 60,
+    "workflow_id": 2,
+    "ts": 1792113658.009056,
+    "level": "info",
+    "step": "testing",
+    "actor": "orchestrator",
+    "message": "Step 'testing' succeeded on attempt 1 in 3.25s",
+    "data": {}
+  },
+  {
+    "id": 61,
+    "workflow_id": 2,
+    "ts": 1792113658.0298266,
+    "level": "info",
+    "step": "review",
+    "actor": "orchestrator",
+    "message": "Step 'review' started (role: review-panel, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 62,
+    "workflow_id": 2,
+    "ts": 1792113658.0563517,
+    "level": "info",
+    "step": null,
+    "actor": "orchestrator",
+    "message": "Iteration 1: testing -> reviewing",
+    "data": {
+      "iteration": 1,
+      "to": "reviewing"
+    }
+  },
+  {
+    "id": 63,
+    "workflow_id": 2,
+    "ts": 1792113699.8458247,
+    "level": "info",
+    "step": "review",
+    "actor": "review-panel",
+    "message": "Iteration 1: 2 independent reviews — ollama-a=approve, ollama-b=approve. Diversity: REAL local inference: 2 reviewers, 2 different models (phi4:14b, qwen3:14b) on ONE provider (ollama); not multi-provider",
+    "data": {}
+  },
+  {
+    "id": 64,
+    "workflow_id": 2,
+    "ts": 1792113699.8754666,
+    "level": "info",
+    "step": "review",
+    "actor": "orchestrator",
+    "message": "Step 'review' succeeded on attempt 1 in 41.83s",
+    "data": {}
+  },
+  {
+    "id": 65,
+    "workflow_id": 2,
+    "ts": 1792113699.9107733,
+    "level": "info",
+    "step": "feedback",
+    "actor": "orchestrator",
+    "message": "Step 'feedback' started (role: aggregator, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 66,
+    "workflow_id": 2,
+    "ts": 1792113699.9362369,
+    "level": "info",
+    "step": null,
+    "actor": "orchestrator",
+    "message": "Iteration 1: reviewing -> aggregating",
+    "data": {
+      "iteration": 1,
+      "to": "aggregating"
+    }
+  },
+  {
+    "id": 67,
+    "workflow_id": 2,
+    "ts": 1792113713.2783794,
+    "level": "info",
+    "step": null,
+    "actor": "orchestrator",
+    "message": "Iteration 1: aggregating -> passed",
+    "data": {
+      "iteration": 1,
+      "to": "passed"
+    }
+  },
+  {
+    "id": 68,
+    "workflow_id": 2,
+    "ts": 1792113713.2926238,
+    "level": "info",
+    "step": "feedback",
+    "actor": "aggregator",
+    "message": "Iteration 1 decision: pass — Iteration 1: no blocking findings and all deterministic checks are green.",
+    "data": {}
+  },
+  {
+    "id": 69,
+    "workflow_id": 2,
+    "ts": 1792113713.3186636,
+    "level": "info",
+    "step": "feedback",
+    "actor": "orchestrator",
+    "message": "Step 'feedback' succeeded on attempt 1 in 13.39s",
+    "data": {}
+  },
+  {
+    "id": 70,
+    "workflow_id": 2,
+    "ts": 1792113713.3414671,
+    "level": "info",
+    "step": "quality_gate",
+    "actor": "orchestrator",
+    "message": "Step 'quality_gate' started (role: quality-gate, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 71,
+    "workflow_id": 2,
+    "ts": 1792113715.7945445,
+    "level": "info",
+    "step": "quality_gate",
+    "actor": "orchestrator",
+    "message": "Step 'quality_gate' succeeded on attempt 1 in 2.44s",
+    "data": {}
+  },
+  {
+    "id": 72,
+    "workflow_id": 2,
+    "ts": 1792113715.8142517,
+    "level": "info",
+    "step": null,
+    "actor": "orchestrator",
+    "message": "State running -> awaiting_approval: all automated checks done; waiting for a human decision",
+    "data": {
+      "from": "running",
+      "to": "awaiting_approval"
+    }
+  },
+  {
+    "id": 305,
+    "workflow_id": 2,
+    "ts": 1792114258.3493574,
+    "level": "info",
+    "step": null,
+    "actor": "human:demo-reviewer",
+    "message": "State awaiting_approval -> approved: scenario E",
+    "data": {
+      "from": "awaiting_approval",
+      "to": "approved"
+    }
+  },
+  {
+    "id": 306,
+    "workflow_id": 2,
+    "ts": 1792114258.3688085,
+    "level": "info",
+    "step": null,
+    "actor": "orchestrator",
+    "message": "Branch sf/wf-2 is ready for a human to merge. System Factory does not merge, push or deploy.",
+    "data": {}
+  }
+]

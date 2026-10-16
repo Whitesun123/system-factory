@@ -23,20 +23,20 @@
 > acceptance criterion, or the loop detects it is stuck (same patch, same failures, no progress) or hits a budget
 > and escalates to a human as *blocked*.
 >
-> **What's real today.** Two runtimes share one pipeline. The **deterministic runtime** (search-based repair plus
-> two rule-based reviewers) is fully tested and in CI. The **Ollama runtime** (a tool-using LLM coder and two LLM
-> reviewers on local models) is implemented. It completed one real end-to-end fix, but the final versions of the
-> harder real scenarios have not been re-run yet. Two Ollama models are **one provider**, and the docs and
-> dashboard say so.
+> **What's real today.** Two runtimes share one pipeline. The **deterministic runtime** is fully tested and in CI.
+> The **Ollama runtime** (a tool-using LLM coder and two LLM reviewers, everything executed in a Docker sandbox) ran
+> scenarios A-E twice on clean clones, including the real revision-after-review case, with results checked by hidden
+> oracles. Those are two small synthetic bugs at fixed seeds, not an automation rate. Three Ollama models are
+> **one provider**, and the docs and dashboard say so.
 
 ## What is real, what is simulated, what is unverified
 
 | Category | Components | Evidence |
 |---|---|---|
 | **A. Deterministic runtime (verified)** | Orchestrator, state machine, iterations, stall detection, budgets, worktree isolation, quality gate, approval guard; search-based repair coder; `simulated-spec` and `simulated-diff` reviewers | Offline test suite on Windows and Ubuntu CI; sanitized evidence in `examples/evidence/` |
-| **B. Real local Ollama runtime (observed earlier in Milestone 5, on earlier code)** | `qwen2.5-coder:14b` coder: real tool calls, real patch; `phi4:14b` + `mistral-nemo:12b` reviewers | One real end-to-end success (bulk discount, 43 s). One real *false approval* of an incomplete fix, which led to the executed-checks design. A 5-case reviewer benchmark (phi4 5/5, mistral-nemo 3/5). Details in `MILESTONE5_STATUS.md` |
-| **C. Implemented, not yet validated with real models** | Real scenarios B (revision after real review), C (stall via feedback ablation), D (real model timeout), E (approval guard inside `scripts/real_demo.py`); the final executed-checks prompt in a full real loop | Offline tests cover the code paths with test doubles and an unreachable port; `scripts/real_demo.py` has not been run |
-| **D. Planned** | Container sandbox, a larger reviewer benchmark and Reviewer B choice, a second real provider (Claude or command adapter, needs approval), PostgreSQL | — |
+| **B. Real local Ollama runtime (validated on two synthetic bugs)** | `qwen2.5-coder:14b` coder; Reviewer A `phi4:14b`, Reviewer B `qwen3:14b`; Docker sandbox | Scenarios A-E, two runs x repeat 2 on clean clones (`examples/evidence/real/`): A 4/4, B 4/4 revise then pass, C 2/2 stalled, D failures recorded, E guard held |
+| **C. Measured** | Reviewer evaluation: 23 labelled cases, 30.4 min of real inference | Raw verdicts caught 0-2 of 9 defects; the evidence pipeline caught 6 of 9 with the selected panel and 0 false blocks (`evaluation/results/REPORT.md`; optimistic, because the pipeline fixes came from the same set) |
+| **D. Not done** | An external issue set and automation rate, a second provider (needs approval), semantic grounding, dependency installation in the sandbox, PostgreSQL | — |
 
 ## The orchestrator and the LLM roles
 
@@ -88,8 +88,8 @@ an incomplete fix the model itself had labelled minor."
 
 **"Is this actually using AI?"**
 Optionally. The default and CI runtime is deterministic. The Ollama runtime calls real local models, and every call
-is recorded with model, digest, tokens reported by Ollama and timing. Only one real end-to-end run is documented;
-the harder real scenarios still need to be run with the final code.
+is recorded with model, digest, tokens reported by Ollama and timing. Scenarios A-E ran with real models on the final
+code (`examples/evidence/real/`).
 
 **"Are these really independent reviewers?"**
 They are independent in input (deep-copied bundle, no shared output) and in technique or model. They are **not**

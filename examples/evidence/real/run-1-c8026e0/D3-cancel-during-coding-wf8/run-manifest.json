@@ -1,0 +1,135 @@
+{
+  "system_factory": {
+    "version": "0.1.0",
+    "run": {
+      "system_factory_version": "0.1.0",
+      "source_revision": "c8026e01f8bf6f2a3138fc483a8c213a970e1469",
+      "source_dirty": false,
+      "source_modified_files": [],
+      "recorded_at": 1792112949.81518
+    },
+    "export": {
+      "source_revision": "c8026e01f8bf6f2a3138fc483a8c213a970e1469",
+      "source_dirty": false
+    }
+  },
+  "target_repository": {
+    "note": "SHAs of the generated demo repository under <DATA_DIR>/repos; run-local identifiers, not System Factory commits",
+    "base_commit": "9538aec9ecd9fe940fb033954b4f95a5104ee72e",
+    "final_commit": "47e759c25790629cf6314aa61334ff6b268c615d",
+    "branch": "sf/wf-8"
+  },
+  "exported_at": "2026-10-16T03:09:29+0200",
+  "environment": {
+    "python": "3.13.12",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "gpu": "NVIDIA GeForce RTX 5080, 16303 MiB, 617.14",
+    "ollama": {
+      "url": "http://127.0.0.1:11434",
+      "reachable": true,
+      "version": "0.30.8"
+    }
+  },
+  "workflow": {
+    "id": 8,
+    "issue_id": 8,
+    "title": "Bulk discount not applied when ordering exactly 10 units",
+    "source": "sample:bulk",
+    "kind": "bug",
+    "state": "cancelled",
+    "runtime": "ollama",
+    "options": {
+      "runtime": "ollama",
+      "coder": "ollama",
+      "reviewers": [
+        "ollama-a",
+        "ollama-b"
+      ],
+      "allow_simulated_reviewers": false,
+      "ollama_url": "http://127.0.0.1:11434",
+      "execution": "docker",
+      "require_isolation": true,
+      "models": {
+        "coder": "qwen2.5-coder:14b",
+        "reviewer_a": "phi4:14b",
+        "reviewer_b": "qwen3:14b"
+      }
+    },
+    "budget": {
+      "max_wall_seconds": 900,
+      "max_candidate_evals": 400,
+      "max_test_runs": 800,
+      "max_iterations": 4,
+      "max_loop_seconds": 600,
+      "max_llm_tokens": 600000,
+      "max_cost_usd": 1.0,
+      "stall_window": 2
+    },
+    "usage": {
+      "candidate_evals": 0,
+      "test_runs": 3,
+      "llm_tokens": 1437,
+      "cost_usd": 0.0
+    },
+    "branch": "sf/wf-8",
+    "base_commit": "9538aec9ecd9fe940fb033954b4f95a5104ee72e",
+    "final_commit": "47e759c25790629cf6314aa61334ff6b268c615d",
+    "created_at": 1792112949.7382588,
+    "started_at": 1792112949.823435,
+    "finished_at": 1792112962.4835658
+  },
+  "execution_modes": [
+    "real-local"
+  ],
+  "models": {
+    "qwen2.5-coder:14b": {
+      "provider": "ollama",
+      "execution": "real-local",
+      "digest": "9ec8897f747e246e970bc5cfdda85d22f1123dc2e3d34978a010a75968716849",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "qwen2",
+        "families": [
+          "qwen2"
+        ],
+        "parameter_size": "14.8B",
+        "quantization_level": "Q4_K_M",
+        "context_length": 32768,
+        "embedding_length": 5120
+      },
+      "roles": [
+        "coding"
+      ],
+      "calls": 1,
+      "ok": 1,
+      "input_tokens": 1429,
+      "output_tokens": 8,
+      "runtime_seconds": 7.4937013
+    }
+  },
+  "reviewer_diversity": null,
+  "iterations": 1,
+  "termination_reason": "cancelled by request",
+  "quality_gate": null,
+  "totals": {
+    "llm_calls": 1,
+    "llm_calls_ok": 1,
+    "llm_calls_failed": 0,
+    "input_tokens": 1429,
+    "output_tokens": 8,
+    "inference_seconds": 7.85,
+    "tool_calls": 0,
+    "test_runs": 2,
+    "automation_seconds": 12.66
+  },
+  "reproduce": [
+    "python -m systemfactory init-demo",
+    "python -m systemfactory submit --sample bulk --runtime ollama",
+    "python -m systemfactory run",
+    "python -m systemfactory show 8",
+    "python -m systemfactory export 8",
+    "git -C <DATA_DIR>/repos/shopcart log --oneline 9538aec9ec..sf/wf-8"
+  ],
+  "honesty": "Token counts are copied from the runtime's responses; nothing is estimated. Simulated components are labelled 'simulated'. Different models on one runtime are one provider."
+}

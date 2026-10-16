@@ -1,0 +1,439 @@
+[
+  {
+    "n": 1,
+    "status": "passed",
+    "base": "a973350bdafd79d44f7581a0d6c1cd3aea394886",
+    "commit": "f52bb4932c6311dfd0e4d1ec7e3b6db59078840b",
+    "fingerprint": "36826813d632e6b0",
+    "patch": {
+      "file": "shopcart/cart.py",
+      "mutation": "Fix bulk discount calculation for exactly 10 units",
+      "tier": null,
+      "coder": "ollama",
+      "model": "qwen2.5-coder:14b",
+      "strategy": "fresh",
+      "base": "a973350bdafd79d44f7581a0d6c1cd3aea394886",
+      "addressed": [],
+      "required_probes": 0,
+      "turns": 2,
+      "self_check": {
+        "repro": 0,
+        "suite": 0
+      },
+      "feedback_given": false,
+      "skipped_rejected": 0
+    },
+    "decision": "pass",
+    "decision_reason": "Iteration 1: no blocking findings and all deterministic checks are green.",
+    "failure_signature": null,
+    "blocking_count": 0,
+    "started_at": 1792113639.701436,
+    "finished_at": 1792113713.2783768,
+    "tests": {
+      "iteration": 1,
+      "commit": "f52bb4932c6311dfd0e4d1ec7e3b6db59078840b",
+      "repro_passed": true,
+      "suite_passed": true,
+      "repro_summary": "1 passed in 0.06s",
+      "suite_summary": "18 passed in 0.14s",
+      "probes": [],
+      "probes_passed": true,
+      "security": {
+        "passed": true,
+        "findings": [],
+        "files_changed": [
+          "shopcart/cart.py"
+        ],
+        "lines_added": 2,
+        "lines_removed": 2,
+        "scanner": "static pattern + scope rules v1"
+      },
+      "all_passed": true
+    },
+    "feedback": {
+      "items": [
+        {
+          "severity": "minor",
+          "title": "Check boundary conditions around bulk discounts",
+          "location": {
+            "file": "shopcart/cart.py",
+            "where": "bulk_discount_percent",
+            "lines": [
+              54
+            ]
+          },
+          "sources": [
+            "ollama-a"
+          ],
+          "corroborated": false,
+          "rules": [
+            "llm-ollama-a"
+          ],
+          "evidence_states": [
+            "unverified"
+          ],
+          "probes": [],
+          "suggestions": [
+            "Add additional tests to verify boundary conditions around bulk discounts, such as quantities just below and above 10 and 50."
+          ],
+          "findings": [
+            {
+              "severity": "minor",
+              "rule": "llm-ollama-a",
+              "title": "Check boundary conditions around bulk discounts",
+              "detail": "Ensure that all boundary conditions for applying discounts are correctly implemented and tested. [unconfirmed: probe passes on current code]",
+              "file": "shopcart/cart.py",
+              "line": 54,
+              "function": "bulk_discount_percent",
+              "evidence": "The function now checks `quantity >= 10` instead of `quantity > 10`, which aligns with the documented behavior.",
+              "suggestion": "Add additional tests to verify boundary conditions around bulk discounts, such as quantities just below and above 10 and 50.",
+              "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(9)\n0.0\n>>> bulk_discount_percent(10)\n5.0\n>>> bulk_discount_percent(11)\n5.0\n>>> bulk_discount_percent(49)\n5.0\n>>> bulk_discount_percent(50)\n10.0",
+              "reviewer": "ollama-a",
+              "confirmed": false,
+              "probe_outcome": "pass",
+              "evidence_state": "unverified"
+            }
+          ],
+          "id": "F1"
+        }
+      ],
+      "blocking_count": 0,
+      "unresolved_count": 0,
+      "signature": null,
+      "checks": [
+        {
+          "reviewer": "ollama-a",
+          "function": "bulk_discount_percent",
+          "call": "bulk_discount_percent(9)",
+          "expected": "0.0",
+          "rule": "The function should return 0.0 for quantities less than 10.",
+          "valid": true,
+          "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(9)\n0.0\n",
+          "file": "shopcart/cart.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "bulk_discount_percent(9)",
+            "0.0"
+          ],
+          "conflicting": false,
+          "corroborated_by": [
+            "ollama-b"
+          ],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-a",
+          "function": "bulk_discount_percent",
+          "call": "bulk_discount_percent(10)",
+          "expected": "5.0",
+          "rule": "The function should return 5.0 for exactly 10 units, as per the documented behavior.",
+          "valid": true,
+          "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(10)\n5.0\n",
+          "file": "shopcart/cart.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "bulk_discount_percent(10)",
+            "5.0"
+          ],
+          "conflicting": false,
+          "corroborated_by": [
+            "ollama-b"
+          ],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-a",
+          "function": "bulk_discount_percent",
+          "call": "bulk_discount_percent(11)",
+          "expected": "5.0",
+          "rule": "The function should continue to return 5.0 for quantities greater than 10 but less than 50.",
+          "valid": true,
+          "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(11)\n5.0\n",
+          "file": "shopcart/cart.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "bulk_discount_percent(11)",
+            "5.0"
+          ],
+          "conflicting": false,
+          "corroborated_by": [],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-a",
+          "function": "bulk_discount_percent",
+          "call": "bulk_discount_percent(49)",
+          "expected": "5.0",
+          "rule": "The function should still apply a 5% discount for quantities just below 50.",
+          "valid": true,
+          "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(49)\n5.0\n",
+          "file": "shopcart/cart.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "bulk_discount_percent(49)",
+            "5.0"
+          ],
+          "conflicting": false,
+          "corroborated_by": [
+            "ollama-b"
+          ],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-a",
+          "function": "bulk_discount_percent",
+          "call": "bulk_discount_percent(50)",
+          "expected": "10.0",
+          "rule": "The function should return 10.0 for exactly 50 units, as per the documented behavior.",
+          "valid": true,
+          "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n",
+          "file": "shopcart/cart.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "bulk_discount_percent(50)",
+            "10.0"
+          ],
+          "conflicting": false,
+          "corroborated_by": [
+            "ollama-b"
+          ],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-b",
+          "function": "bulk_discount_percent",
+          "call": "bulk_discount_percent(9)",
+          "expected": "0.0",
+          "rule": "No discount below 10 units",
+          "valid": true,
+          "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(9)\n0.0\n",
+          "file": "shopcart/cart.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "bulk_discount_percent(9)",
+            "0.0"
+          ],
+          "conflicting": false,
+          "corroborated_by": [
+            "ollama-a"
+          ],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-b",
+          "function": "bulk_discount_percent",
+          "call": "bulk_discount_percent(10)",
+          "expected": "5.0",
+          "rule": "5% discount for 10 or more units",
+          "valid": true,
+          "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(10)\n5.0\n",
+          "file": "shopcart/cart.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "bulk_discount_percent(10)",
+            "5.0"
+          ],
+          "conflicting": false,
+          "corroborated_by": [
+            "ollama-a"
+          ],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-b",
+          "function": "bulk_discount_percent",
+          "call": "bulk_discount_percent(49)",
+          "expected": "5.0",
+          "rule": "5% discount for 10 or more units",
+          "valid": true,
+          "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(49)\n5.0\n",
+          "file": "shopcart/cart.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "bulk_discount_percent(49)",
+            "5.0"
+          ],
+          "conflicting": false,
+          "corroborated_by": [
+            "ollama-a"
+          ],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-b",
+          "function": "bulk_discount_percent",
+          "call": "bulk_discount_percent(50)",
+          "expected": "10.0",
+          "rule": "10% discount for 50 or more units",
+          "valid": true,
+          "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n",
+          "file": "shopcart/cart.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "bulk_discount_percent(50)",
+            "10.0"
+          ],
+          "conflicting": false,
+          "corroborated_by": [
+            "ollama-a"
+          ],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-b",
+          "function": "bulk_discount_percent",
+          "call": "bulk_discount_percent(51)",
+          "expected": "10.0",
+          "rule": "10% discount for 50 or more units",
+          "valid": true,
+          "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(51)\n10.0\n",
+          "file": "shopcart/cart.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "bulk_discount_percent(51)",
+            "10.0"
+          ],
+          "conflicting": false,
+          "corroborated_by": [],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-b",
+          "function": "coupon_discount",
+          "call": "coupon_discount('SAVE10')",
+          "expected": "10.0",
+          "rule": "Known coupon code returns correct discount",
+          "valid": true,
+          "probe": ">>> from shopcart.cart import coupon_discount\n>>> coupon_discount('SAVE10')\n10.0\n",
+          "file": "shopcart/cart.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "coupon_discount('SAVE10')",
+            "10.0"
+          ],
+          "conflicting": false,
+          "corroborated_by": [],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-b",
+          "function": "coupon_discount",
+          "call": "coupon_discount('UNKNOWN')",
+          "expected": "0.0",
+          "rule": "Unknown coupon code returns 0.0",
+          "valid": true,
+          "probe": ">>> from shopcart.cart import coupon_discount\n>>> coupon_discount('UNKNOWN')\n0.0\n",
+          "file": "shopcart/cart.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "coupon_discount('UNKNOWN')",
+            "0.0"
+          ],
+          "conflicting": false,
+          "corroborated_by": [],
+          "evidence_state": "passed"
+        },
+        {
+          "reviewer": "ollama-b",
+          "function": "coupon_discount",
+          "call": "coupon_discount('  HALF  ')",
+          "expected": "50.0",
+          "rule": "Whitespace in coupon code is stripped before lookup",
+          "valid": true,
+          "probe": ">>> from shopcart.cart import coupon_discount\n>>> coupon_discount('  HALF  ')\n50.0\n",
+          "file": "shopcart/cart.py",
+          "invalid_reason": null,
+          "outcome": "pass",
+          "got": null,
+          "key": [
+            "coupon_discount('HALF')",
+            "50.0"
+          ],
+          "conflicting": false,
+          "corroborated_by": [],
+          "evidence_state": "passed"
+        }
+      ],
+      "inspected_reviews": {
+        "ollama-a": "5 valid check(s) executed",
+        "ollama-b": "8 valid check(s) executed"
+      },
+      "strategy": "build_on_previous",
+      "probes": [],
+      "focus": {
+        "lines": {
+          "shopcart/cart.py": [
+            54
+          ]
+        },
+        "functions": [
+          "bulk_discount_percent"
+        ]
+      }
+    },
+    "llm_call_ids": [
+      5,
+      6,
+      7,
+      8
+    ],
+    "tool_calls": [
+      {
+        "id": 3,
+        "workflow_id": 2,
+        "iteration": 1,
+        "step": "coding",
+        "role": "coding",
+        "llm_call_id": 5,
+        "tool": "run_tests",
+        "args": {},
+        "ok": false,
+        "result": "********\nE         File \"issue #2\", line 2, in issue_2\nE         Failed example:\nE             bulk_discount_percent(10)\nE         Expected:\nE             5.0\nE         Got:\nE             0.0\nE         \nE       assert 1 == 0\nE        +  where 1 = TestResults(failed=1, attempted=2).failed\n\ntests/test_issue_2.py:23: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_issue_2.py::test_issue_2_reproduction - AssertionError: ***...\n1 failed in 0.09s\n\nfull suite: exit 1\n..............F...                                                       [100%]\n=================================== FAILURES ===================================\n__________________________ test_issue_2_reproduction ___________________________\n\n    def test_issue_2_reproduction():\n        result, output = run_example()\n>       assert result.failed == 0, output\nE       AssertionError: **********************************************************************\nE         File \"issue #2\", line 2, in issue_2\nE         Failed example:\nE             bulk_discount_percent(10)\nE         Expected:\nE             5.0\nE         Got:\nE             0.0\nE         \nE       assert 1 == 0\nE        +  where 1 = TestResults(failed=1, attempted=2).failed\n\ntests/test_issue_2.py:23: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_issue_2.py::test_issue_2_reproduction - AssertionError: ***...\n1 failed, 17 passed in 0.18s\n",
+        "seconds": 2.188,
+        "created_at": 1792113650.3738813
+      },
+      {
+        "id": 4,
+        "workflow_id": 2,
+        "iteration": 1,
+        "step": "coding",
+        "role": "coding",
+        "llm_call_id": 6,
+        "tool": "submit",
+        "args": {
+          "edits": 1,
+          "summary": "Fix bulk discount calculation for exactly 10 units",
+          "fingerprint": "36826813d632e6b0"
+        },
+        "ok": true,
+        "result": "applied 1 edit(s); reproduction test exit 0, suite exit 0",
+        "seconds": 2.169,
+        "created_at": 1792113654.4592216
+      }
+    ]
+  }
+]

@@ -1,0 +1,271 @@
+[
+  {
+    "iteration": 1,
+    "reviewer": "ollama-a",
+    "provider": "ollama",
+    "model": "phi4:14b",
+    "model_digest": "ac896e5b8b34a1f4efa7b14d7520725140d5512484457fab45d2a4ea14c69dba",
+    "execution": "real-local",
+    "simulated": false,
+    "verdict": "approve",
+    "summary": "The patch correctly addresses the issue, applying a 5% discount for orders of 10 or more units as specified. The acceptance criteria were met: the reproduction test now passes, and the full test suite remains unaffected by this change.",
+    "analysis": "The issue was that the function `bulk_discount_percent` did not apply a 5% discount when exactly 10 units were ordered, contrary to what was documented in the README and docstring. The patch corrected this by changing the condition from `quantity > 10` to `quantity >= 10`, ensuring that orders of exactly 10 units receive the promised discount.",
+    "findings": [
+      {
+        "severity": "blocking",
+        "title": "Bulk Discount Rule Not Applied Correctly for Exactly 10 Units",
+        "detail": "The original function `bulk_discount_percent` did not apply a discount when exactly 10 units were ordered, which was against the documented behavior.",
+        "file": "shopcart/cart.py",
+        "function": "bulk_discount_percent",
+        "line": 54,
+        "evidence": "Original condition `if quantity > 10:` failed to include orders of exactly 10 units for a discount.",
+        "suggestion": "Change the condition to `if quantity >= 10:` to correctly apply the discount as documented.",
+        "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(9)\n0.0\n>>> bulk_discount_percent(10)\n5.0\n>>> bulk_discount_percent(50)\n10.0",
+        "rule": "llm-ollama-a"
+      }
+    ],
+    "checks_executed": [
+      {
+        "reviewer": "ollama-a",
+        "function": "bulk_discount_percent",
+        "call": "bulk_discount_percent(9)",
+        "expected": "0.0",
+        "rule": "Orders of less than 10 units should not receive a discount.",
+        "valid": true,
+        "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(9)\n0.0\n",
+        "file": "shopcart/cart.py",
+        "invalid_reason": null,
+        "outcome": "pass",
+        "got": null,
+        "key": [
+          "bulk_discount_percent(9)",
+          "0.0"
+        ],
+        "conflicting": false,
+        "corroborated_by": [
+          "ollama-b"
+        ],
+        "evidence_state": "passed"
+      },
+      {
+        "reviewer": "ollama-a",
+        "function": "bulk_discount_percent",
+        "call": "bulk_discount_percent(10)",
+        "expected": "5.0",
+        "rule": "Orders of exactly 10 units should receive a 5% discount.",
+        "valid": true,
+        "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(10)\n5.0\n",
+        "file": "shopcart/cart.py",
+        "invalid_reason": null,
+        "outcome": "pass",
+        "got": null,
+        "key": [
+          "bulk_discount_percent(10)",
+          "5.0"
+        ],
+        "conflicting": false,
+        "corroborated_by": [
+          "ollama-b"
+        ],
+        "evidence_state": "passed"
+      },
+      {
+        "reviewer": "ollama-a",
+        "function": "bulk_discount_percent",
+        "call": "bulk_discount_percent(50)",
+        "expected": "10.0",
+        "rule": "Orders of 50 or more units should receive a 10% discount.",
+        "valid": true,
+        "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n",
+        "file": "shopcart/cart.py",
+        "invalid_reason": null,
+        "outcome": "pass",
+        "got": null,
+        "key": [
+          "bulk_discount_percent(50)",
+          "10.0"
+        ],
+        "conflicting": false,
+        "corroborated_by": [
+          "ollama-b"
+        ],
+        "evidence_state": "passed"
+      },
+      {
+        "reviewer": "ollama-a",
+        "function": "coupon_discount",
+        "call": "coupon_discount('SAVE10')",
+        "expected": "10.0",
+        "rule": "The coupon code 'SAVE10' should return a 10% discount.",
+        "valid": true,
+        "probe": ">>> from shopcart.cart import coupon_discount\n>>> coupon_discount('SAVE10')\n10.0\n",
+        "file": "shopcart/cart.py",
+        "invalid_reason": null,
+        "outcome": "pass",
+        "got": null,
+        "key": [
+          "coupon_discount('SAVE10')",
+          "10.0"
+        ],
+        "conflicting": false,
+        "corroborated_by": [
+          "ollama-b"
+        ],
+        "evidence_state": "passed"
+      },
+      {
+        "reviewer": "ollama-a",
+        "function": "coupon_discount",
+        "call": "coupon_discount('HALF')",
+        "expected": "50.0",
+        "rule": "The coupon code 'HALF' should return a 50% discount.",
+        "valid": true,
+        "probe": ">>> from shopcart.cart import coupon_discount\n>>> coupon_discount('HALF')\n50.0\n",
+        "file": "shopcart/cart.py",
+        "invalid_reason": null,
+        "outcome": "pass",
+        "got": null,
+        "key": [
+          "coupon_discount('HALF')",
+          "50.0"
+        ],
+        "conflicting": false,
+        "corroborated_by": [],
+        "evidence_state": "passed"
+      }
+    ],
+    "input_tokens": 1689,
+    "output_tokens": 618,
+    "seconds": 15.312,
+    "error": null,
+    "llm_call_id": 7
+  },
+  {
+    "iteration": 1,
+    "reviewer": "ollama-b",
+    "provider": "ollama",
+    "model": "qwen3:14b",
+    "model_digest": "bdbd181c33f2ed1b31c972991882db3cf4d192569092138a7d29e973cd9debe8",
+    "execution": "real-local",
+    "simulated": false,
+    "verdict": "approve",
+    "summary": "The patch correctly fixes the original bug by applying the 5% discount for exactly 10 units. All test cases pass, and no regressions or security issues are found.",
+    "analysis": "The patch changes the conditions in `bulk_discount_percent` from `>` to `>=` for thresholds at 10 and 50 units. This directly affects the discount calculation for quantities at these boundaries.",
+    "findings": [],
+    "checks_executed": [
+      {
+        "reviewer": "ollama-b",
+        "function": "bulk_discount_percent",
+        "call": "bulk_discount_percent(9)",
+        "expected": "0.0",
+        "rule": "No discount for quantities below 10",
+        "valid": true,
+        "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(9)\n0.0\n",
+        "file": "shopcart/cart.py",
+        "invalid_reason": null,
+        "outcome": "pass",
+        "got": null,
+        "key": [
+          "bulk_discount_percent(9)",
+          "0.0"
+        ],
+        "conflicting": false,
+        "corroborated_by": [
+          "ollama-a"
+        ],
+        "evidence_state": "passed"
+      },
+      {
+        "reviewer": "ollama-b",
+        "function": "bulk_discount_percent",
+        "call": "bulk_discount_percent(10)",
+        "expected": "5.0",
+        "rule": "5% discount for 10 or more units",
+        "valid": true,
+        "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(10)\n5.0\n",
+        "file": "shopcart/cart.py",
+        "invalid_reason": null,
+        "outcome": "pass",
+        "got": null,
+        "key": [
+          "bulk_discount_percent(10)",
+          "5.0"
+        ],
+        "conflicting": false,
+        "corroborated_by": [
+          "ollama-a"
+        ],
+        "evidence_state": "passed"
+      },
+      {
+        "reviewer": "ollama-b",
+        "function": "bulk_discount_percent",
+        "call": "bulk_discount_percent(50)",
+        "expected": "10.0",
+        "rule": "10% discount for 50 or more units",
+        "valid": true,
+        "probe": ">>> from shopcart.cart import bulk_discount_percent\n>>> bulk_discount_percent(50)\n10.0\n",
+        "file": "shopcart/cart.py",
+        "invalid_reason": null,
+        "outcome": "pass",
+        "got": null,
+        "key": [
+          "bulk_discount_percent(50)",
+          "10.0"
+        ],
+        "conflicting": false,
+        "corroborated_by": [
+          "ollama-a"
+        ],
+        "evidence_state": "passed"
+      },
+      {
+        "reviewer": "ollama-b",
+        "function": "coupon_discount",
+        "call": "coupon_discount('SAVE10')",
+        "expected": "10.0",
+        "rule": "Known coupon codes return their defined discount",
+        "valid": true,
+        "probe": ">>> from shopcart.cart import coupon_discount\n>>> coupon_discount('SAVE10')\n10.0\n",
+        "file": "shopcart/cart.py",
+        "invalid_reason": null,
+        "outcome": "pass",
+        "got": null,
+        "key": [
+          "coupon_discount('SAVE10')",
+          "10.0"
+        ],
+        "conflicting": false,
+        "corroborated_by": [
+          "ollama-a"
+        ],
+        "evidence_state": "passed"
+      },
+      {
+        "reviewer": "ollama-b",
+        "function": "coupon_discount",
+        "call": "coupon_discount('UNKNOWN')",
+        "expected": "0.0",
+        "rule": "Unknown coupon codes return 0.0 discount",
+        "valid": true,
+        "probe": ">>> from shopcart.cart import coupon_discount\n>>> coupon_discount('UNKNOWN')\n0.0\n",
+        "file": "shopcart/cart.py",
+        "invalid_reason": null,
+        "outcome": "pass",
+        "got": null,
+        "key": [
+          "coupon_discount('UNKNOWN')",
+          "0.0"
+        ],
+        "conflicting": false,
+        "corroborated_by": [],
+        "evidence_state": "passed"
+      }
+    ],
+    "input_tokens": 2286,
+    "output_tokens": 426,
+    "seconds": 20.242,
+    "error": null,
+    "llm_call_id": 8
+  }
+]

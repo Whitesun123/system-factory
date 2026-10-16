@@ -1,0 +1,38 @@
+{
+  "status": "not reached",
+  "gate": null,
+  "gate_report": null,
+  "escalation": {
+    "iteration": 2,
+    "decision": "stalled",
+    "reason": "Repeated solution: iteration 2 produced the same patch as iteration 1 (fingerprint ec67817129).",
+    "open_blocking": [
+      {
+        "id": "F1",
+        "title": "Previously reported defect still present (P-03b9da5a)",
+        "location": {
+          "file": null,
+          "where": "general",
+          "lines": []
+        },
+        "severity": "blocking"
+      },
+      {
+        "id": "F2",
+        "title": "Shipping banner incorrectly displays message for $50.00 orders",
+        "location": {
+          "file": "shopcart/checkout.py",
+          "where": "shipping_banner",
+          "lines": [
+            22
+          ]
+        },
+        "severity": "blocking"
+      }
+    ],
+    "recommended_action": "Review the iteration history, then fix manually, give the agent more context, or retry to grant one more iteration."
+  },
+  "approvals": [],
+  "final_state": "blocked",
+  "termination_reason": "Escalated to a human after iteration 2: Repeated solution: iteration 2 produced the same patch as iteration 1 (fingerprint ec67817129)."
+}

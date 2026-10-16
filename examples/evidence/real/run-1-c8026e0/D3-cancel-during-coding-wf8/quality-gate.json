@@ -1,0 +1,9 @@
+{
+  "status": "not reached",
+  "gate": null,
+  "gate_report": null,
+  "escalation": null,
+  "approvals": [],
+  "final_state": "cancelled",
+  "termination_reason": "cancelled by request"
+}

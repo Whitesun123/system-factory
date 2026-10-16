@@ -1,0 +1,24 @@
+[
+  {
+    "n": 1,
+    "status": "failed",
+    "base": null,
+    "commit": null,
+    "fingerprint": null,
+    "patch": {},
+    "decision": "failed",
+    "decision_reason": "coding: retries exhausted after 3 attempts; last error: coder model call failed: Ollama not reachable at http://127.0.0.1:9: [WinError 10061] No connection could be made because the target machine actively refused it",
+    "failure_signature": null,
+    "blocking_count": null,
+    "started_at": 1792112929.9486942,
+    "finished_at": 1792112937.9128036,
+    "tests": {},
+    "feedback": {},
+    "llm_call_ids": [
+      33,
+      34,
+      35
+    ],
+    "tool_calls": []
+  }
+]

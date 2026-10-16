@@ -1,0 +1,229 @@
+[
+  {
+    "id": 282,
+    "workflow_id": 8,
+    "ts": 1792112949.739403,
+    "level": "info",
+    "step": null,
+    "actor": "intake",
+    "message": "Issue #8 received from sample:bulk: Bulk discount not applied when ordering exactly 10 units",
+    "data": {}
+  },
+  {
+    "id": 283,
+    "workflow_id": 8,
+    "ts": 1792112949.823456,
+    "level": "info",
+    "step": null,
+    "actor": "orchestrator",
+    "message": "State queued -> running: claimed by worker-32572-36de64",
+    "data": {
+      "from": "queued",
+      "to": "running"
+    }
+  },
+  {
+    "id": 284,
+    "workflow_id": 8,
+    "ts": 1792112949.8328173,
+    "level": "info",
+    "step": "triage",
+    "actor": "orchestrator",
+    "message": "Step 'triage' started (role: triage, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 285,
+    "workflow_id": 8,
+    "ts": 1792112949.883376,
+    "level": "info",
+    "step": "triage",
+    "actor": "triage",
+    "message": "Classified as bug (severity medium, confidence 1.0)",
+    "data": {
+      "scores": {
+        "bug": 5,
+        "feature": 0,
+        "support": 0
+      }
+    }
+  },
+  {
+    "id": 286,
+    "workflow_id": 8,
+    "ts": 1792112949.9137409,
+    "level": "info",
+    "step": "triage",
+    "actor": "orchestrator",
+    "message": "Step 'triage' succeeded on attempt 1 in 0.07s",
+    "data": {}
+  },
+  {
+    "id": 287,
+    "workflow_id": 8,
+    "ts": 1792112949.9347582,
+    "level": "info",
+    "step": null,
+    "actor": "orchestrator",
+    "message": "Pipeline for bug: triage -> requirements -> plan -> workspace -> reproduce -> coding -> testing -> review -> feedback -> quality_gate -> approval",
+    "data": {}
+  },
+  {
+    "id": 288,
+    "workflow_id": 8,
+    "ts": 1792112949.9616854,
+    "level": "info",
+    "step": "requirements",
+    "actor": "orchestrator",
+    "message": "Step 'requirements' started (role: requirements, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 289,
+    "workflow_id": 8,
+    "ts": 1792112950.021287,
+    "level": "info",
+    "step": "requirements",
+    "actor": "orchestrator",
+    "message": "Step 'requirements' succeeded on attempt 1 in 0.04s",
+    "data": {}
+  },
+  {
+    "id": 290,
+    "workflow_id": 8,
+    "ts": 1792112950.0420406,
+    "level": "info",
+    "step": "plan",
+    "actor": "orchestrator",
+    "message": "Step 'plan' started (role: architecture, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 291,
+    "workflow_id": 8,
+    "ts": 1792112950.1096542,
+    "level": "info",
+    "step": "plan",
+    "actor": "orchestrator",
+    "message": "Step 'plan' succeeded on attempt 1 in 0.05s",
+    "data": {}
+  },
+  {
+    "id": 292,
+    "workflow_id": 8,
+    "ts": 1792112950.1407986,
+    "level": "info",
+    "step": "workspace",
+    "actor": "orchestrator",
+    "message": "Step 'workspace' started (role: infra, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 293,
+    "workflow_id": 8,
+    "ts": 1792112950.4159312,
+    "level": "info",
+    "step": "workspace",
+    "actor": "infra",
+    "message": "Worktree ready at <DATA_DIR>\\worktrees\\wf-8 on sf/wf-8 (base 9538aec9ec)",
+    "data": {}
+  },
+  {
+    "id": 294,
+    "workflow_id": 8,
+    "ts": 1792112950.489273,
+    "level": "info",
+    "step": "workspace",
+    "actor": "orchestrator",
+    "message": "Step 'workspace' succeeded on attempt 1 in 0.34s",
+    "data": {}
+  },
+  {
+    "id": 295,
+    "workflow_id": 8,
+    "ts": 1792112950.5104256,
+    "level": "info",
+    "step": "reproduce",
+    "actor": "orchestrator",
+    "message": "Step 'reproduce' started (role: qa, up to 2 attempts)",
+    "data": {}
+  },
+  {
+    "id": 296,
+    "workflow_id": 8,
+    "ts": 1792112953.6771624,
+    "level": "info",
+    "step": "reproduce",
+    "actor": "qa",
+    "message": "Reproduced: tests/test_issue_8.py fails on base; committed 47e759c257",
+    "data": {}
+  },
+  {
+    "id": 297,
+    "workflow_id": 8,
+    "ts": 1792112953.7058077,
+    "level": "info",
+    "step": "reproduce",
+    "actor": "orchestrator",
+    "message": "Step 'reproduce' succeeded on attempt 1 in 3.18s",
+    "data": {}
+  },
+  {
+    "id": 298,
+    "workflow_id": 8,
+    "ts": 1792112953.7312405,
+    "level": "info",
+    "step": "coding",
+    "actor": "orchestrator",
+    "message": "Step 'coding' started (role: coding, up to 3 attempts)",
+    "data": {}
+  },
+  {
+    "id": 299,
+    "workflow_id": 8,
+    "ts": 1792112953.7596757,
+    "level": "info",
+    "step": "coding",
+    "actor": "orchestrator",
+    "message": "Iteration 1 started",
+    "data": {
+      "iteration": 1
+    }
+  },
+  {
+    "id": 300,
+    "workflow_id": 8,
+    "ts": 1792112961.9080253,
+    "level": "info",
+    "step": null,
+    "actor": "human:real-demo",
+    "message": "Cancellation requested by real-demo",
+    "data": {}
+  },
+  {
+    "id": 301,
+    "workflow_id": 8,
+    "ts": 1792112962.4420516,
+    "level": "info",
+    "step": null,
+    "actor": "orchestrator",
+    "message": "Iteration 1: coding -> cancelled",
+    "data": {
+      "iteration": 1,
+      "to": "cancelled"
+    }
+  },
+  {
+    "id": 302,
+    "workflow_id": 8,
+    "ts": 1792112962.4835958,
+    "level": "info",
+    "step": null,
+    "actor": "orchestrator",
+    "message": "State running -> cancelled: cancelled by request",
+    "data": {
+      "from": "running",
+      "to": "cancelled"
+    }
+  }
+]
